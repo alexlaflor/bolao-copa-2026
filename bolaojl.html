@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bolão Copa 2026</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/preact/10.19.2/preact.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/preact/10.19.2/hooks.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/htm/3.1.1/htm.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a0f1e; color: #e8eaf0; font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+  button { cursor: pointer; font-family: inherit; }
+  input { font-family: inherit; }
+  ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #0a0f1e; } ::-webkit-scrollbar-thumb { background: #1e2845; border-radius: 3px; }
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,10,0.85); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .modal { background: #111929; border-radius: 16px; padding: 24px; max-width: 500px; width: 100%; border: 1px solid #1e3a5f; max-height: 90vh; overflow-y: auto; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const { h, render } = preact;
+const { useState, useEffect, useMemo } = preactHooks;
+const html = htm.bind(h);
+
+// ── STORAGE KEY (JSONBin.io – substitua BIN_ID e API_KEY pelos seus) ──────────
+// Para usar sem banco de dados, os resultados ficam só no localStorage (apenas local)
+// Siga o README para configurar JSONBin e ter sync compartilhado
+const USE_JSONBIN = true;
+const JSONBIN_ID  = "6a2aa296f5f4af5e29de92fe";
+const JSONBIN_KEY = "$2a$10$ef58pmnr2Yonzjv4ibSoGuiA/GAUuzbl4FJeozZxTqf8A7pEl.cVG";
+
+const STORAGE_KEY = "bolao2026_results";
+
+async function loadFromStorage() {
+  if (USE_JSONBIN) {
+    const res = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_ID}/latest`, {
+      headers: { "X-Access-Key": JSONBIN_KEY }
+    });
+    const json = await res.json();
+    return json.record || {};
+  }
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch { return {}; }
+}
+
+async function saveToStorage(data) {
+  if (USE_JSONBIN) {
+    await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_ID}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-Access-Key": JSONBIN_KEY },
+      body: JSON.stringify(data)
+    });
+  } else {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }
+}
+
+// ── DATA ──────────────────────────────────────────────────────────────────────
+const PARTICIPANTS = [
+  { id: "01", name: "Eduardo G" }, { id: "02", name: "Eduardo K" },
+  { id: "03", name: "Camila" },    { id: "04", name: "Marina" },
+  { id: "05", name: "Leandro" },   { id: "06", name: "Tiago" },
+  { id: "07", name: "Adriano" },   { id: "08", name: "Thaís" },
+];
+
+const GAMES = [
+  { id:1,  t1:"México",         t2:"África do Sul",  date:"11/06", time:"16:00", city:"Azteca",       g:"A" },
+  { id:2,  t1:"Coreia do Sul",  t2:"Tchéquia",       date:"11/06", time:"23:00", city:"Guadalajara",  g:"A" },
+  { id:3,  t1:"Tchéquia",       t2:"África do Sul",  date:"18/06", time:"13:00", city:"Atlanta",      g:"A" },
+  { id:4,  t1:"México",         t2:"Coreia do Sul",  date:"18/06", time:"22:00", city:"Guadalajara",  g:"A" },
+  { id:5,  t1:"Tchéquia",       t2:"México",         date:"24/06", time:"22:00", city:"Azteca",       g:"A" },
+  { id:6,  t1:"África do Sul",  t2:"Coreia do Sul",  date:"24/06", time:"22:00", city:"Monterrey",    g:"A" },
+  { id:7,  t1:"Canadá",         t2:"Bósnia e Herz.", date:"12/06", time:"16:00", city:"Toronto",      g:"B" },
+  { id:8,  t1:"Catar",          t2:"Suíça",          date:"13/06", time:"16:00", city:"Santa Clara",  g:"B" },
+  { id:9,  t1:"Canadá",         t2:"Catar",          date:"18/06", time:"19:00", city:"Vancouver",    g:"B" },
+  { id:10, t1:"Suíça",          t2:"Bósnia e Herz.", date:"18/06", time:"16:00", city:"Los Angeles",  g:"B" },
+  { id:11, t1:"Suíça",          t2:"Canadá",         date:"24/06", time:"16:00", city:"Vancouver",    g:"B" },
+  { id:12, t1:"Bósnia e Herz.", t2:"Catar",          date:"24/06", time:"16:00", city:"Seattle",      g:"B" },
+  { id:13, t1:"Brasil",         t2:"Marrocos",       date:"13/06", time:"19:00", city:"NY / NJ",      g:"C" },
+  { id:14, t1:"Haiti",          t2:"Escócia",        date:"13/06", time:"22:00", city:"Boston",       g:"C" },
+  { id:15, t1:"Brasil",         t2:"Haiti",          date:"19/06", time:"21:30", city:"Filadélfia",   g:"C" },
+  { id:16, t1:"Escócia",        t2:"Marrocos",       date:"19/06", time:"19:00", city:"Boston",       g:"C" },
+  { id:17, t1:"Escócia",        t2:"Brasil",         date:"24/06", time:"19:00", city:"Miami",        g:"C" },
+  { id:18, t1:"Marrocos",       t2:"Haiti",          date:"24/06", time:"19:00", city:"Atlanta",      g:"C" },
+  { id:19, t1:"EUA",            t2:"Paraguai",       date:"12/06", time:"22:00", city:"Los Angeles",  g:"D" },
+  { id:20, t1:"Austrália",      t2:"Turquia",        date:"13/06", time:"01:00", city:"Vancouver",    g:"D" },
+  { id:21, t1:"EUA",            t2:"Austrália",      date:"19/06", time:"16:00", city:"Seattle",      g:"D" },
+  { id:22, t1:"Turquia",        t2:"Paraguai",       date:"19/06", time:"00:00", city:"Santa Clara",  g:"D" },
+  { id:23, t1:"Turquia",        t2:"EUA",            date:"25/06", time:"23:00", city:"Los Angeles",  g:"D" },
+  { id:24, t1:"Paraguai",       t2:"Austrália",      date:"25/06", time:"23:00", city:"Santa Clara",  g:"D" },
+  { id:25, t1:"Alemanha",       t2:"Curaçau",        date:"14/06", time:"14:00", city:"Houston",      g:"E" },
+  { id:26, t1:"Costa do Marfim",t2:"Equador",        date:"14/06", time:"20:00", city:"Filadélfia",   g:"E" },
+  { id:27, t1:"Alemanha",       t2:"Costa do Marfim",date:"19/06", time:"17:00", city:"Toronto",      g:"E" },
+  { id:28, t1:"Equador",        t2:"Curaçau",        date:"19/06", time:"21:00", city:"Kansas City",  g:"E" },
+  { id:29, t1:"Equador",        t2:"Alemanha",       date:"24/06", time:"17:00", city:"NY / NJ",      g:"E" },
+  { id:30, t1:"Curaçau",        t2:"Costa do Marfim",date:"24/06", time:"17:00", city:"Filadélfia",   g:"E" },
+  { id:31, t1:"Holanda",        t2:"Japão",          date:"14/06", time:"17:00", city:"Dallas",       g:"F" },
+  { id:32, t1:"Suécia",         t2:"Tunísia",        date:"14/06", time:"22:00", city:"Monterrey",    g:"F" },
+  { id:33, t1:"Holanda",        t2:"Suécia",         date:"19/06", time:"17:00", city:"Houston",      g:"F" },
+  { id:34, t1:"Tunísia",        t2:"Japão",          date:"19/06", time:"23:00", city:"Monterrey",    g:"F" },
+  { id:35, t1:"Tunísia",        t2:"Holanda",        date:"24/06", time:"20:00", city:"Kansas City",  g:"F" },
+  { id:36, t1:"Japão",          t2:"Suécia",         date:"24/06", time:"20:00", city:"Dallas",       g:"F" },
+  { id:37, t1:"Bélgica",        t2:"Egito",          date:"15/06", time:"16:00", city:"Seattle",      g:"G" },
+  { id:38, t1:"Irão",           t2:"Nova Zelândia",  date:"15/06", time:"22:00", city:"Los Angeles",  g:"G" },
+  { id:39, t1:"Bélgica",        t2:"Irão",           date:"20/06", time:"16:00", city:"Los Angeles",  g:"G" },
+  { id:40, t1:"Nova Zelândia",  t2:"Egito",          date:"20/06", time:"22:00", city:"Vancouver",    g:"G" },
+  { id:41, t1:"Nova Zelândia",  t2:"Bélgica",        date:"25/06", time:"00:00", city:"Vancouver",    g:"G" },
+  { id:42, t1:"Egito",          t2:"Irão",           date:"25/06", time:"00:00", city:"Seattle",      g:"G" },
+  { id:43, t1:"Espanha",        t2:"Cabo Verde",     date:"15/06", time:"13:00", city:"Atlanta",      g:"H" },
+  { id:44, t1:"Arábia Saudita", t2:"Uruguai",        date:"15/06", time:"19:00", city:"Miami",        g:"H" },
+  { id:45, t1:"Espanha",        t2:"Arábia Saudita", date:"20/06", time:"13:00", city:"Atlanta",      g:"H" },
+  { id:46, t1:"Uruguai",        t2:"Cabo Verde",     date:"20/06", time:"19:00", city:"Miami",        g:"H" },
+  { id:47, t1:"Uruguai",        t2:"Espanha",        date:"25/06", time:"21:00", city:"Guadalajara",  g:"H" },
+  { id:48, t1:"Cabo Verde",     t2:"Arábia Saudita", date:"25/06", time:"21:00", city:"Houston",      g:"H" },
+  { id:49, t1:"França",         t2:"Senegal",        date:"16/06", time:"16:00", city:"NY / NJ",      g:"I" },
+  { id:50, t1:"Iraque",         t2:"Noruega",        date:"16/06", time:"19:00", city:"Boston",       g:"I" },
+  { id:51, t1:"França",         t2:"Iraque",         date:"21/06", time:"18:00", city:"Filadélfia",   g:"I" },
+  { id:52, t1:"Noruega",        t2:"Senegal",        date:"21/06", time:"21:00", city:"NY / NJ",      g:"I" },
+  { id:53, t1:"Noruega",        t2:"França",         date:"25/06", time:"16:00", city:"Boston",       g:"I" },
+  { id:54, t1:"Senegal",        t2:"Iraque",         date:"25/06", time:"16:00", city:"Toronto",      g:"I" },
+  { id:55, t1:"Argentina",      t2:"Argélia",        date:"16/06", time:"22:00", city:"Kansas City",  g:"J" },
+  { id:56, t1:"Áustria",        t2:"Jordânia",       date:"17/06", time:"01:00", city:"Santa Clara",  g:"J" },
+  { id:57, t1:"Argentina",      t2:"Áustria",        date:"21/06", time:"14:00", city:"Dallas",       g:"J" },
+  { id:58, t1:"Jordânia",       t2:"Argélia",        date:"22/06", time:"00:00", city:"Santa Clara",  g:"J" },
+  { id:59, t1:"Jordânia",       t2:"Argentina",      date:"26/06", time:"23:00", city:"Dallas",       g:"J" },
+  { id:60, t1:"Argélia",        t2:"Áustria",        date:"26/06", time:"23:00", city:"Kansas City",  g:"J" },
+  { id:61, t1:"Portugal",       t2:"RD Congo",       date:"17/06", time:"14:00", city:"Houston",      g:"K" },
+  { id:62, t1:"Uzbequistão",    t2:"Colômbia",       date:"17/06", time:"21:00", city:"Azteca",       g:"K" },
+  { id:63, t1:"Portugal",       t2:"Uzbequistão",    date:"22/06", time:"14:00", city:"Houston",      g:"K" },
+  { id:64, t1:"Colômbia",       t2:"RD Congo",       date:"22/06", time:"23:00", city:"Guadalajara",  g:"K" },
+  { id:65, t1:"Colômbia",       t2:"Portugal",       date:"27/06", time:"20:30", city:"Miami",        g:"K" },
+  { id:66, t1:"RD Congo",       t2:"Uzbequistão",    date:"27/06", time:"20:30", city:"Atlanta",      g:"K" },
+  { id:67, t1:"Inglaterra",     t2:"Croácia",        date:"17/06", time:"17:00", city:"Dallas",       g:"L" },
+  { id:68, t1:"Gana",           t2:"Panamá",         date:"17/06", time:"20:00", city:"Toronto",      g:"L" },
+  { id:69, t1:"Inglaterra",     t2:"Gana",           date:"22/06", time:"17:00", city:"Boston",       g:"L" },
+  { id:70, t1:"Panamá",         t2:"Croácia",        date:"22/06", time:"20:00", city:"Toronto",      g:"L" },
+  { id:71, t1:"Panamá",         t2:"Inglaterra",     date:"27/06", time:"18:00", city:"NY / NJ",      g:"L" },
+  { id:72, t1:"Croácia",        t2:"Gana",           date:"27/06", time:"18:00", city:"Filadélfia",   g:"L" },
+];
+
+const BETS = {
+  "01": {"México|África do Sul":{s1:2,s2:0},"Coreia do Sul|Tchéquia":{s1:1,s2:1},"Tchéquia|África do Sul":{s1:1,s2:0},"México|Coreia do Sul":{s1:1,s2:1},"Tchéquia|México":{s1:0,s2:1},"África do Sul|Coreia do Sul":{s1:1,s2:3},"Canadá|Bósnia e Herz.":{s1:1,s2:0},"Catar|Suíça":{s1:0,s2:2},"Canadá|Catar":{s1:3,s2:1},"Suíça|Bósnia e Herz.":{s1:1,s2:0},"Suíça|Canadá":{s1:0,s2:0},"Bósnia e Herz.|Catar":{s1:3,s2:1},"Brasil|Marrocos":{s1:2,s2:1},"Haiti|Escócia":{s1:1,s2:2},"Brasil|Haiti":{s1:3,s2:0},"Escócia|Marrocos":{s1:0,s2:1},"Escócia|Brasil":{s1:0,s2:2},"Marrocos|Haiti":{s1:3,s2:1},"EUA|Paraguai":{s1:1,s2:0},"Austrália|Turquia":{s1:1,s2:2},"EUA|Austrália":{s1:2,s2:2},"Turquia|Paraguai":{s1:1,s2:0},"Turquia|EUA":{s1:1,s2:1},"Paraguai|Austrália":{s1:1,s2:0},"Alemanha|Curaçau":{s1:4,s2:0},"Costa do Marfim|Equador":{s1:1,s2:1},"Alemanha|Costa do Marfim":{s1:2,s2:1},"Equador|Curaçau":{s1:2,s2:0},"Equador|Alemanha":{s1:0,s2:1},"Curaçau|Costa do Marfim":{s1:1,s2:3},"Holanda|Japão":{s1:1,s2:0},"Suécia|Tunísia":{s1:2,s2:0},"Holanda|Suécia":{s1:2,s2:1},"Tunísia|Japão":{s1:0,s2:2},"Tunísia|Holanda":{s1:1,s2:3},"Japão|Suécia":{s1:2,s2:1},"Bélgica|Egito":{s1:2,s2:1},"Irão|Nova Zelândia":{s1:1,s2:0},"Bélgica|Irão":{s1:1,s2:0},"Nova Zelândia|Egito":{s1:0,s2:2},"Nova Zelândia|Bélgica":{s1:0,s2:1},"Egito|Irão":{s1:1,s2:1},"Espanha|Cabo Verde":{s1:3,s2:0},"Arábia Saudita|Uruguai":{s1:0,s2:1},"Espanha|Arábia Saudita":{s1:2,s2:0},"Uruguai|Cabo Verde":{s1:2,s2:0},"Uruguai|Espanha":{s1:0,s2:2},"Cabo Verde|Arábia Saudita":{s1:2,s2:1},"França|Senegal":{s1:3,s2:1},"Iraque|Noruega":{s1:0,s2:2},"França|Iraque":{s1:2,s2:0},"Noruega|Senegal":{s1:1,s2:1},"Noruega|França":{s1:1,s2:2},"Senegal|Iraque":{s1:2,s2:1},"Argentina|Argélia":{s1:2,s2:0},"Áustria|Jordânia":{s1:1,s2:0},"Argentina|Áustria":{s1:1,s2:0},"Jordânia|Argélia":{s1:0,s2:2},"Jordânia|Argentina":{s1:0,s2:3},"Argélia|Áustria":{s1:1,s2:1},"Portugal|RD Congo":{s1:2,s2:0},"Uzbequistão|Colômbia":{s1:1,s2:2},"Portugal|Uzbequistão":{s1:2,s2:0},"Colômbia|RD Congo":{s1:2,s2:1},"Colômbia|Portugal":{s1:0,s2:1},"RD Congo|Uzbequistão":{s1:2,s2:1},"Inglaterra|Croácia":{s1:2,s2:0},"Gana|Panamá":{s1:1,s2:0},"Inglaterra|Gana":{s1:2,s2:1},"Panamá|Croácia":{s1:1,s2:2},"Panamá|Inglaterra":{s1:1,s2:3},"Croácia|Gana":{s1:1,s2:1}},
+  "02": {"México|África do Sul":{s1:2,s2:0},"Coreia do Sul|Tchéquia":{s1:1,s2:2},"Tchéquia|África do Sul":{s1:3,s2:1},"México|Coreia do Sul":{s1:3,s2:0},"Tchéquia|México":{s1:1,s2:1},"África do Sul|Coreia do Sul":{s1:1,s2:2},"Canadá|Bósnia e Herz.":{s1:2,s2:1},"Catar|Suíça":{s1:0,s2:3},"Canadá|Catar":{s1:3,s2:1},"Suíça|Bósnia e Herz.":{s1:1,s2:0},"Suíça|Canadá":{s1:2,s2:1},"Bósnia e Herz.|Catar":{s1:2,s2:0},"Brasil|Marrocos":{s1:1,s2:1},"Haiti|Escócia":{s1:1,s2:3},"Brasil|Haiti":{s1:4,s2:0},"Escócia|Marrocos":{s1:1,s2:2},"Escócia|Brasil":{s1:0,s2:2},"Marrocos|Haiti":{s1:5,s2:1},"EUA|Paraguai":{s1:1,s2:1},"Austrália|Turquia":{s1:0,s2:2},"EUA|Austrália":{s1:2,s2:0},"Turquia|Paraguai":{s1:3,s2:1},"Turquia|EUA":{s1:2,s2:0},"Paraguai|Austrália":{s1:2,s2:1},"Alemanha|Curaçau":{s1:6,s2:0},"Costa do Marfim|Equador":{s1:0,s2:0},"Alemanha|Costa do Marfim":{s1:3,s2:1},"Equador|Curaçau":{s1:2,s2:0},"Equador|Alemanha":{s1:0,s2:3},"Curaçau|Costa do Marfim":{s1:1,s2:3},"Holanda|Japão":{s1:1,s2:1},"Suécia|Tunísia":{s1:2,s2:0},"Holanda|Suécia":{s1:2,s2:1},"Tunísia|Japão":{s1:0,s2:3},"Tunísia|Holanda":{s1:1,s2:3},"Japão|Suécia":{s1:2,s2:1},"Bélgica|Egito":{s1:2,s2:1},"Irão|Nova Zelândia":{s1:3,s2:0},"Bélgica|Irão":{s1:2,s2:1},"Nova Zelândia|Egito":{s1:0,s2:2},"Nova Zelândia|Bélgica":{s1:0,s2:4},"Egito|Irão":{s1:2,s2:2},"Espanha|Cabo Verde":{s1:4,s2:0},"Arábia Saudita|Uruguai":{s1:1,s2:2},"Espanha|Arábia Saudita":{s1:3,s2:1},"Uruguai|Cabo Verde":{s1:2,s2:0},"Uruguai|Espanha":{s1:0,s2:2},"Cabo Verde|Arábia Saudita":{s1:1,s2:3},"França|Senegal":{s1:2,s2:1},"Iraque|Noruega":{s1:0,s2:2},"França|Iraque":{s1:3,s2:0},"Noruega|Senegal":{s1:4,s2:2},"Noruega|França":{s1:1,s2:2},"Senegal|Iraque":{s1:2,s2:1},"Argentina|Argélia":{s1:1,s2:0},"Áustria|Jordânia":{s1:2,s2:0},"Argentina|Áustria":{s1:1,s2:1},"Jordânia|Argélia":{s1:1,s2:2},"Jordânia|Argentina":{s1:0,s2:3},"Argélia|Áustria":{s1:0,s2:1},"Portugal|RD Congo":{s1:2,s2:0},"Uzbequistão|Colômbia":{s1:0,s2:2},"Portugal|Uzbequistão":{s1:3,s2:1},"Colômbia|RD Congo":{s1:2,s2:1},"Colômbia|Portugal":{s1:1,s2:1},"RD Congo|Uzbequistão":{s1:1,s2:0},"Inglaterra|Croácia":{s1:1,s2:1},"Gana|Panamá":{s1:2,s2:1},"Inglaterra|Gana":{s1:2,s2:0},"Panamá|Croácia":{s1:0,s2:2},"Panamá|Inglaterra":{s1:1,s2:3},"Croácia|Gana":{s1:1,s2:0}},
+  "03": {"México|África do Sul":{s1:1,s2:0},"Coreia do Sul|Tchéquia":{s1:1,s2:0},"Tchéquia|África do Sul":{s1:1,s2:2},"México|Coreia do Sul":{s1:2,s2:1},"Tchéquia|México":{s1:0,s2:2},"África do Sul|Coreia do Sul":{s1:0,s2:2},"Canadá|Bósnia e Herz.":{s1:2,s2:0},"Catar|Suíça":{s1:0,s2:1},"Canadá|Catar":{s1:2,s2:0},"Suíça|Bósnia e Herz.":{s1:2,s2:0},"Suíça|Canadá":{s1:1,s2:1},"Bósnia e Herz.|Catar":{s1:2,s2:0},"Brasil|Marrocos":{s1:3,s2:1},"Haiti|Escócia":{s1:0,s2:1},"Brasil|Haiti":{s1:4,s2:0},"Escócia|Marrocos":{s1:0,s2:1},"Escócia|Brasil":{s1:0,s2:3},"Marrocos|Haiti":{s1:2,s2:0},"EUA|Paraguai":{s1:2,s2:0},"Austrália|Turquia":{s1:0,s2:2},"EUA|Austrália":{s1:2,s2:1},"Turquia|Paraguai":{s1:2,s2:0},"Turquia|EUA":{s1:1,s2:1},"Paraguai|Austrália":{s1:2,s2:1},"Alemanha|Curaçau":{s1:4,s2:0},"Costa do Marfim|Equador":{s1:1,s2:1},"Alemanha|Costa do Marfim":{s1:3,s2:0},"Equador|Curaçau":{s1:2,s2:0},"Equador|Alemanha":{s1:0,s2:2},"Curaçau|Costa do Marfim":{s1:0,s2:2},"Holanda|Japão":{s1:2,s2:0},"Suécia|Tunísia":{s1:2,s2:0},"Holanda|Suécia":{s1:2,s2:1},"Tunísia|Japão":{s1:0,s2:2},"Tunísia|Holanda":{s1:0,s2:3},"Japão|Suécia":{s1:1,s2:2},"Bélgica|Egito":{s1:3,s2:0},"Irão|Nova Zelândia":{s1:2,s2:0},"Bélgica|Irão":{s1:2,s2:0},"Nova Zelândia|Egito":{s1:0,s2:2},"Nova Zelândia|Bélgica":{s1:0,s2:3},"Egito|Irão":{s1:1,s2:1},"Espanha|Cabo Verde":{s1:4,s2:0},"Arábia Saudita|Uruguai":{s1:0,s2:2},"Espanha|Arábia Saudita":{s1:3,s2:0},"Uruguai|Cabo Verde":{s1:3,s2:0},"Uruguai|Espanha":{s1:0,s2:2},"Cabo Verde|Arábia Saudita":{s1:1,s2:0},"França|Senegal":{s1:3,s2:0},"Iraque|Noruega":{s1:0,s2:2},"França|Iraque":{s1:3,s2:0},"Noruega|Senegal":{s1:2,s2:1},"Noruega|França":{s1:0,s2:2},"Senegal|Iraque":{s1:2,s2:0},"Argentina|Argélia":{s1:2,s2:0},"Áustria|Jordânia":{s1:2,s2:0},"Argentina|Áustria":{s1:2,s2:0},"Jordânia|Argélia":{s1:0,s2:1},"Jordânia|Argentina":{s1:0,s2:3},"Argélia|Áustria":{s1:1,s2:2},"Portugal|RD Congo":{s1:3,s2:0},"Uzbequistão|Colômbia":{s1:0,s2:2},"Portugal|Uzbequistão":{s1:3,s2:0},"Colômbia|RD Congo":{s1:2,s2:0},"Colômbia|Portugal":{s1:0,s2:2},"RD Congo|Uzbequistão":{s1:1,s2:0},"Inglaterra|Croácia":{s1:2,s2:0},"Gana|Panamá":{s1:2,s2:0},"Inglaterra|Gana":{s1:3,s2:0},"Panamá|Croácia":{s1:0,s2:2},"Panamá|Inglaterra":{s1:0,s2:3},"Croácia|Gana":{s1:1,s2:1}},
+  "04": {"México|África do Sul":{s1:2,s2:1},"Coreia do Sul|Tchéquia":{s1:0,s2:2},"Tchéquia|África do Sul":{s1:2,s2:1},"México|Coreia do Sul":{s1:2,s2:0},"Tchéquia|México":{s1:1,s2:2},"África do Sul|Coreia do Sul":{s1:0,s2:2},"Canadá|Bósnia e Herz.":{s1:2,s2:0},"Catar|Suíça":{s1:0,s2:2},"Canadá|Catar":{s1:3,s2:0},"Suíça|Bósnia e Herz.":{s1:2,s2:0},"Suíça|Canadá":{s1:1,s2:2},"Bósnia e Herz.|Catar":{s1:1,s2:0},"Brasil|Marrocos":{s1:2,s2:0},"Haiti|Escócia":{s1:0,s2:2},"Brasil|Haiti":{s1:4,s2:0},"Escócia|Marrocos":{s1:0,s2:2},"Escócia|Brasil":{s1:0,s2:2},"Marrocos|Haiti":{s1:3,s2:0},"EUA|Paraguai":{s1:2,s2:0},"Austrália|Turquia":{s1:0,s2:2},"EUA|Austrália":{s1:2,s2:0},"Turquia|Paraguai":{s1:2,s2:0},"Turquia|EUA":{s1:2,s2:1},"Paraguai|Austrália":{s1:1,s2:0},"Alemanha|Curaçau":{s1:3,s2:0},"Costa do Marfim|Equador":{s1:1,s2:1},"Alemanha|Costa do Marfim":{s1:2,s2:0},"Equador|Curaçau":{s1:2,s2:0},"Equador|Alemanha":{s1:0,s2:2},"Curaçau|Costa do Marfim":{s1:0,s2:2},"Holanda|Japão":{s1:2,s2:0},"Suécia|Tunísia":{s1:2,s2:0},"Holanda|Suécia":{s1:2,s2:0},"Tunísia|Japão":{s1:0,s2:2},"Tunísia|Holanda":{s1:0,s2:3},"Japão|Suécia":{s1:1,s2:2},"Bélgica|Egito":{s1:3,s2:0},"Irão|Nova Zelândia":{s1:2,s2:0},"Bélgica|Irão":{s1:2,s2:0},"Nova Zelândia|Egito":{s1:0,s2:2},"Nova Zelândia|Bélgica":{s1:0,s2:3},"Egito|Irão":{s1:1,s2:1},"Espanha|Cabo Verde":{s1:3,s2:0},"Arábia Saudita|Uruguai":{s1:0,s2:2},"Espanha|Arábia Saudita":{s1:3,s2:0},"Uruguai|Cabo Verde":{s1:2,s2:0},"Uruguai|Espanha":{s1:0,s2:2},"Cabo Verde|Arábia Saudita":{s1:1,s2:2},"França|Senegal":{s1:3,s2:0},"Iraque|Noruega":{s1:0,s2:2},"França|Iraque":{s1:3,s2:0},"Noruega|Senegal":{s1:2,s2:1},"Noruega|França":{s1:1,s2:2},"Senegal|Iraque":{s1:2,s2:0},"Argentina|Argélia":{s1:2,s2:0},"Áustria|Jordânia":{s1:2,s2:0},"Argentina|Áustria":{s1:2,s2:1},"Jordânia|Argélia":{s1:0,s2:1},"Jordânia|Argentina":{s1:0,s2:3},"Argélia|Áustria":{s1:1,s2:2},"Portugal|RD Congo":{s1:3,s2:0},"Uzbequistão|Colômbia":{s1:0,s2:2},"Portugal|Uzbequistão":{s1:3,s2:0},"Colômbia|RD Congo":{s1:2,s2:0},"Colômbia|Portugal":{s1:0,s2:2},"RD Congo|Uzbequistão":{s1:1,s2:0},"Inglaterra|Croácia":{s1:2,s2:0},"Gana|Panamá":{s1:2,s2:0},"Inglaterra|Gana":{s1:3,s2:1},"Panamá|Croácia":{s1:0,s2:2},"Panamá|Inglaterra":{s1:0,s2:2},"Croácia|Gana":{s1:1,s2:1}},
+  "05": {"México|África do Sul":{s1:2,s2:1},"Coreia do Sul|Tchéquia":{s1:1,s2:2},"Tchéquia|África do Sul":{s1:1,s2:0},"México|Coreia do Sul":{s1:2,s2:0},"Tchéquia|México":{s1:0,s2:1},"África do Sul|Coreia do Sul":{s1:0,s2:2},"Canadá|Bósnia e Herz.":{s1:2,s2:0},"Catar|Suíça":{s1:0,s2:2},"Canadá|Catar":{s1:3,s2:0},"Suíça|Bósnia e Herz.":{s1:2,s2:0},"Suíça|Canadá":{s1:1,s2:1},"Bósnia e Herz.|Catar":{s1:2,s2:0},"Brasil|Marrocos":{s1:2,s2:0},"Haiti|Escócia":{s1:0,s2:2},"Brasil|Haiti":{s1:4,s2:0},"Escócia|Marrocos":{s1:0,s2:2},"Escócia|Brasil":{s1:0,s2:2},"Marrocos|Haiti":{s1:3,s2:0},"EUA|Paraguai":{s1:1,s2:0},"Austrália|Turquia":{s1:0,s2:2},"EUA|Austrália":{s1:2,s2:0},"Turquia|Paraguai":{s1:2,s2:0},"Turquia|EUA":{s1:1,s2:1},"Paraguai|Austrália":{s1:1,s2:0},"Alemanha|Curaçau":{s1:3,s2:0},"Costa do Marfim|Equador":{s1:1,s2:1},"Alemanha|Costa do Marfim":{s1:2,s2:0},"Equador|Curaçau":{s1:2,s2:0},"Equador|Alemanha":{s1:0,s2:2},"Curaçau|Costa do Marfim":{s1:0,s2:2},"Holanda|Japão":{s1:2,s2:0},"Suécia|Tunísia":{s1:2,s2:0},"Holanda|Suécia":{s1:2,s2:1},"Tunísia|Japão":{s1:0,s2:2},"Tunísia|Holanda":{s1:0,s2:2},"Japão|Suécia":{s1:2,s2:1},"Bélgica|Egito":{s1:2,s2:0},"Irão|Nova Zelândia":{s1:2,s2:0},"Bélgica|Irão":{s1:2,s2:0},"Nova Zelândia|Egito":{s1:0,s2:2},"Nova Zelândia|Bélgica":{s1:0,s2:2},"Egito|Irão":{s1:1,s2:1},"Espanha|Cabo Verde":{s1:3,s2:0},"Arábia Saudita|Uruguai":{s1:0,s2:2},"Espanha|Arábia Saudita":{s1:2,s2:0},"Uruguai|Cabo Verde":{s1:2,s2:0},"Uruguai|Espanha":{s1:0,s2:1},"Cabo Verde|Arábia Saudita":{s1:1,s2:0},"França|Senegal":{s1:2,s2:0},"Iraque|Noruega":{s1:0,s2:2},"França|Iraque":{s1:3,s2:0},"Noruega|Senegal":{s1:2,s2:1},"Noruega|França":{s1:0,s2:2},"Senegal|Iraque":{s1:2,s2:0},"Argentina|Argélia":{s1:2,s2:0},"Áustria|Jordânia":{s1:2,s2:0},"Argentina|Áustria":{s1:2,s2:0},"Jordânia|Argélia":{s1:0,s2:1},"Jordânia|Argentina":{s1:0,s2:3},"Argélia|Áustria":{s1:1,s2:1},"Portugal|RD Congo":{s1:3,s2:0},"Uzbequistão|Colômbia":{s1:0,s2:3},"Portugal|Uzbequistão":{s1:2,s2:0},"Colômbia|RD Congo":{s1:2,s2:0},"Colômbia|Portugal":{s1:0,s2:1},"RD Congo|Uzbequistão":{s1:1,s2:0},"Inglaterra|Croácia":{s1:2,s2:0},"Gana|Panamá":{s1:2,s2:0},"Inglaterra|Gana":{s1:2,s2:0},"Panamá|Croácia":{s1:0,s2:2},"Panamá|Inglaterra":{s1:0,s2:2},"Croácia|Gana":{s1:1,s2:1}},
+  "06": {"México|África do Sul":{s1:3,s2:1},"Coreia do Sul|Tchéquia":{s1:2,s2:1},"Tchéquia|África do Sul":{s1:1,s2:0},"México|Coreia do Sul":{s1:2,s2:0},"Tchéquia|México":{s1:0,s2:1},"África do Sul|Coreia do Sul":{s1:0,s2:2},"Canadá|Bósnia e Herz.":{s1:2,s2:0},"Catar|Suíça":{s1:0,s2:2},"Canadá|Catar":{s1:3,s2:0},"Suíça|Bósnia e Herz.":{s1:2,s2:0},"Suíça|Canadá":{s1:1,s2:2},"Bósnia e Herz.|Catar":{s1:2,s2:0},"Brasil|Marrocos":{s1:2,s2:0},"Haiti|Escócia":{s1:0,s2:2},"Brasil|Haiti":{s1:4,s2:0},"Escócia|Marrocos":{s1:0,s2:2},"Escócia|Brasil":{s1:0,s2:2},"Marrocos|Haiti":{s1:2,s2:0},"EUA|Paraguai":{s1:2,s2:0},"Austrália|Turquia":{s1:0,s2:2},"EUA|Austrália":{s1:2,s2:0},"Turquia|Paraguai":{s1:2,s2:0},"Turquia|EUA":{s1:2,s2:1},"Paraguai|Austrália":{s1:1,s2:0},"Alemanha|Curaçau":{s1:4,s2:0},"Costa do Marfim|Equador":{s1:1,s2:1},"Alemanha|Costa do Marfim":{s1:3,s2:0},"Equador|Curaçau":{s1:2,s2:0},"Equador|Alemanha":{s1:0,s2:2},"Curaçau|Costa do Marfim":{s1:0,s2:2},"Holanda|Japão":{s1:2,s2:0},"Suécia|Tunísia":{s1:2,s2:0},"Holanda|Suécia":{s1:2,s2:1},"Tunísia|Japão":{s1:0,s2:2},"Tunísia|Holanda":{s1:0,s2:3},"Japão|Suécia":{s1:2,s2:1},"Bélgica|Egito":{s1:3,s2:0},"Irão|Nova Zelândia":{s1:2,s2:0},"Bélgica|Irão":{s1:2,s2:0},"Nova Zelândia|Egito":{s1:0,s2:2},"Nova Zelândia|Bélgica":{s1:0,s2:3},"Egito|Irão":{s1:1,s2:1},"Espanha|Cabo Verde":{s1:3,s2:0},"Arábia Saudita|Uruguai":{s1:0,s2:2},"Espanha|Arábia Saudita":{s1:3,s2:0},"Uruguai|Cabo Verde":{s1:2,s2:0},"Uruguai|Espanha":{s1:0,s2:2},"Cabo Verde|Arábia Saudita":{s1:1,s2:0},"França|Senegal":{s1:3,s2:0},"Iraque|Noruega":{s1:0,s2:2},"França|Iraque":{s1:3,s2:0},"Noruega|Senegal":{s1:2,s2:0},"Noruega|França":{s1:0,s2:2},"Senegal|Iraque":{s1:2,s2:0},"Argentina|Argélia":{s1:2,s2:0},"Áustria|Jordânia":{s1:2,s2:0},"Argentina|Áustria":{s1:2,s2:0},"Jordânia|Argélia":{s1:0,s2:2},"Jordânia|Argentina":{s1:0,s2:3},"Argélia|Áustria":{s1:0,s2:1},"Portugal|RD Congo":{s1:3,s2:0},"Uzbequistão|Colômbia":{s1:0,s2:2},"Portugal|Uzbequistão":{s1:3,s2:0},"Colômbia|RD Congo":{s1:2,s2:0},"Colômbia|Portugal":{s1:0,s2:1},"RD Congo|Uzbequistão":{s1:1,s2:0},"Inglaterra|Croácia":{s1:2,s2:0},"Gana|Panamá":{s1:2,s2:0},"Inglaterra|Gana":{s1:2,s2:0},"Panamá|Croácia":{s1:0,s2:2},"Panamá|Inglaterra":{s1:0,s2:2},"Croácia|Gana":{s1:1,s2:1}},
+  "07": {"México|África do Sul":{s1:2,s2:0},"Coreia do Sul|Tchéquia":{s1:1,s2:1},"Tchéquia|África do Sul":{s1:0,s2:2},"México|Coreia do Sul":{s1:2,s2:1},"Tchéquia|México":{s1:1,s2:2},"África do Sul|Coreia do Sul":{s1:0,s2:2},"Canadá|Bósnia e Herz.":{s1:2,s2:0},"Catar|Suíça":{s1:0,s2:2},"Canadá|Catar":{s1:3,s2:0},"Suíça|Bósnia e Herz.":{s1:2,s2:0},"Suíça|Canadá":{s1:1,s2:2},"Bósnia e Herz.|Catar":{s1:2,s2:0},"Brasil|Marrocos":{s1:2,s2:0},"Haiti|Escócia":{s1:0,s2:2},"Brasil|Haiti":{s1:4,s2:0},"Escócia|Marrocos":{s1:0,s2:2},"Escócia|Brasil":{s1:0,s2:2},"Marrocos|Haiti":{s1:3,s2:0},"EUA|Paraguai":{s1:2,s2:0},"Austrália|Turquia":{s1:0,s2:2},"EUA|Austrália":{s1:2,s2:0},"Turquia|Paraguai":{s1:2,s2:0},"Turquia|EUA":{s1:2,s2:1},"Paraguai|Austrália":{s1:1,s2:0},"Alemanha|Curaçau":{s1:3,s2:0},"Costa do Marfim|Equador":{s1:1,s2:1},"Alemanha|Costa do Marfim":{s1:2,s2:0},"Equador|Curaçau":{s1:2,s2:0},"Equador|Alemanha":{s1:0,s2:2},"Curaçau|Costa do Marfim":{s1:0,s2:2},"Holanda|Japão":{s1:2,s2:0},"Suécia|Tunísia":{s1:2,s2:0},"Holanda|Suécia":{s1:2,s2:1},"Tunísia|Japão":{s1:0,s2:2},"Tunísia|Holanda":{s1:0,s2:3},"Japão|Suécia":{s1:2,s2:1},"Bélgica|Egito":{s1:2,s2:0},"Irão|Nova Zelândia":{s1:2,s2:0},"Bélgica|Irão":{s1:2,s2:0},"Nova Zelândia|Egito":{s1:0,s2:2},"Nova Zelândia|Bélgica":{s1:0,s2:2},"Egito|Irão":{s1:1,s2:1},"Espanha|Cabo Verde":{s1:3,s2:0},"Arábia Saudita|Uruguai":{s1:0,s2:2},"Espanha|Arábia Saudita":{s1:2,s2:0},"Uruguai|Cabo Verde":{s1:2,s2:0},"Uruguai|Espanha":{s1:0,s2:2},"Cabo Verde|Arábia Saudita":{s1:1,s2:0},"França|Senegal":{s1:3,s2:0},"Iraque|Noruega":{s1:0,s2:2},"França|Iraque":{s1:3,s2:0},"Noruega|Senegal":{s1:2,s2:1},"Noruega|França":{s1:0,s2:2},"Senegal|Iraque":{s1:2,s2:0},"Argentina|Argélia":{s1:2,s2:0},"Áustria|Jordânia":{s1:2,s2:0},"Argentina|Áustria":{s1:2,s2:0},"Jordânia|Argélia":{s1:0,s2:2},"Jordânia|Argentina":{s1:0,s2:3},"Argélia|Áustria":{s1:1,s2:2},"Portugal|RD Congo":{s1:3,s2:0},"Uzbequistão|Colômbia":{s1:0,s2:2},"Portugal|Uzbequistão":{s1:2,s2:0},"Colômbia|RD Congo":{s1:2,s2:0},"Colômbia|Portugal":{s1:0,s2:1},"RD Congo|Uzbequistão":{s1:1,s2:0},"Inglaterra|Croácia":{s1:2,s2:0},"Gana|Panamá":{s1:2,s2:0},"Inglaterra|Gana":{s1:2,s2:0},"Panamá|Croácia":{s1:0,s2:2},"Panamá|Inglaterra":{s1:0,s2:2},"Croácia|Gana":{s1:1,s2:1}},
+  "08": {"México|África do Sul":{s1:1,s2:0},"Coreia do Sul|Tchéquia":{s1:1,s2:1},"Tchéquia|África do Sul":{s1:1,s2:0},"México|Coreia do Sul":{s1:1,s2:1},"Tchéquia|México":{s1:0,s2:1},"África do Sul|Coreia do Sul":{s1:0,s2:2},"Canadá|Bósnia e Herz.":{s1:2,s2:0},"Catar|Suíça":{s1:0,s2:2},"Canadá|Catar":{s1:2,s2:0},"Suíça|Bósnia e Herz.":{s1:1,s2:0},"Suíça|Canadá":{s1:0,s2:1},"Bósnia e Herz.|Catar":{s1:2,s2:0},"Brasil|Marrocos":{s1:2,s2:1},"Haiti|Escócia":{s1:0,s2:2},"Brasil|Haiti":{s1:3,s2:0},"Escócia|Marrocos":{s1:0,s2:2},"Escócia|Brasil":{s1:0,s2:2},"Marrocos|Haiti":{s1:2,s2:0},"EUA|Paraguai":{s1:1,s2:0},"Austrália|Turquia":{s1:0,s2:2},"EUA|Austrália":{s1:2,s2:0},"Turquia|Paraguai":{s1:2,s2:0},"Turquia|EUA":{s1:1,s2:1},"Paraguai|Austrália":{s1:1,s2:0},"Alemanha|Curaçau":{s1:3,s2:0},"Costa do Marfim|Equador":{s1:1,s2:1},"Alemanha|Costa do Marfim":{s1:2,s2:0},"Equador|Curaçau":{s1:2,s2:0},"Equador|Alemanha":{s1:0,s2:2},"Curaçau|Costa do Marfim":{s1:0,s2:2},"Holanda|Japão":{s1:2,s2:0},"Suécia|Tunísia":{s1:2,s2:0},"Holanda|Suécia":{s1:2,s2:1},"Tunísia|Japão":{s1:0,s2:2},"Tunísia|Holanda":{s1:0,s2:2},"Japão|Suécia":{s1:2,s2:1},"Bélgica|Egito":{s1:2,s2:0},"Irão|Nova Zelândia":{s1:2,s2:0},"Bélgica|Irão":{s1:2,s2:0},"Nova Zelândia|Egito":{s1:0,s2:2},"Nova Zelândia|Bélgica":{s1:0,s2:2},"Egito|Irão":{s1:1,s2:1},"Espanha|Cabo Verde":{s1:3,s2:0},"Arábia Saudita|Uruguai":{s1:0,s2:2},"Espanha|Arábia Saudita":{s1:2,s2:0},"Uruguai|Cabo Verde":{s1:2,s2:0},"Uruguai|Espanha":{s1:0,s2:2},"Cabo Verde|Arábia Saudita":{s1:1,s2:0},"França|Senegal":{s1:2,s2:0},"Iraque|Noruega":{s1:0,s2:2},"França|Iraque":{s1:3,s2:0},"Noruega|Senegal":{s1:2,s2:1},"Noruega|França":{s1:0,s2:2},"Senegal|Iraque":{s1:2,s2:0},"Argentina|Argélia":{s1:2,s2:0},"Áustria|Jordânia":{s1:2,s2:0},"Argentina|Áustria":{s1:2,s2:0},"Jordânia|Argélia":{s1:0,s2:2},"Jordânia|Argentina":{s1:0,s2:3},"Argélia|Áustria":{s1:1,s2:2},"Portugal|RD Congo":{s1:3,s2:0},"Uzbequistão|Colômbia":{s1:0,s2:2},"Portugal|Uzbequistão":{s1:2,s2:0},"Colômbia|RD Congo":{s1:2,s2:0},"Colômbia|Portugal":{s1:0,s2:1},"RD Congo|Uzbequistão":{s1:1,s2:0},"Inglaterra|Croácia":{s1:2,s2:0},"Gana|Panamá":{s1:2,s2:0},"Inglaterra|Gana":{s1:2,s2:0},"Panamá|Croácia":{s1:0,s2:2},"Panamá|Inglaterra":{s1:0,s2:2},"Croácia|Gana":{s1:1,s2:1}},
+};
+
+const FLAGS = {"México":"🇲🇽","África do Sul":"🇿🇦","Coreia do Sul":"🇰🇷","Tchéquia":"🇨🇿","Canadá":"🇨🇦","Bósnia e Herz.":"🇧🇦","Catar":"🇶🇦","Suíça":"🇨🇭","Brasil":"🇧🇷","Marrocos":"🇲🇦","Haiti":"🇭🇹","Escócia":"🏴󠁧󠁢󠁳󠁣󠁴󠁿","EUA":"🇺🇸","Paraguai":"🇵🇾","Austrália":"🇦🇺","Turquia":"🇹🇷","Alemanha":"🇩🇪","Curaçau":"🇨🇼","Costa do Marfim":"🇨🇮","Equador":"🇪🇨","Holanda":"🇳🇱","Japão":"🇯🇵","Suécia":"🇸🇪","Tunísia":"🇹🇳","Bélgica":"🇧🇪","Egito":"🇪🇬","Irão":"🇮🇷","Nova Zelândia":"🇳🇿","Espanha":"🇪🇸","Cabo Verde":"🇨🇻","Arábia Saudita":"🇸🇦","Uruguai":"🇺🇾","França":"🇫🇷","Senegal":"🇸🇳","Iraque":"🇮🇶","Noruega":"🇳🇴","Argentina":"🇦🇷","Argélia":"🇩🇿","Áustria":"🇦🇹","Jordânia":"🇯🇴","Portugal":"🇵🇹","RD Congo":"🇨🇩","Uzbequistão":"🇺🇿","Colômbia":"🇨🇴","Inglaterra":"🏴󠁧󠁢󠁥󠁮󠁧󠁿","Croácia":"🇭🇷","Gana":"🇬🇭","Panamá":"🇵🇦"};
+const flag = t => FLAGS[t] || "🏴";
+
+// ── SCORING ───────────────────────────────────────────────────────────────────
+function score(real, bet) {
+  if (real.s1 === null || !bet) return null;
+  if (bet.s1 === real.s1 && bet.s2 === real.s2) return 5;
+  const rw = real.s1 > real.s2 ? 1 : real.s1 < real.s2 ? 2 : 0;
+  const bw = bet.s1  > bet.s2  ? 1 : bet.s1  < bet.s2  ? 2 : 0;
+  if (rw !== bw) return 0;
+  return Math.max(real.s1, real.s2) === Math.max(bet.s1, bet.s2) ? 3 : 2;
+}
+
+// ── COMPONENTS ────────────────────────────────────────────────────────────────
+function App() {
+  const [results, setResults] = useState({});
+  const [loading, setLoading]   = useState(true);
+  const [saving, setSaving]     = useState(false);
+  const [tab, setTab]           = useState("ranking");
+  const [grpFilter, setGrpFilter] = useState("all");
+  const [editId, setEditId]     = useState(null);
+  const [editS, setEditS]       = useState({s1:"",s2:""});
+  const [modal, setModal]       = useState(null); // game object for palpites modal
+
+  useEffect(() => {
+    loadFromStorage().then(d => { setResults(d); setLoading(false); });
+    const iv = setInterval(() => loadFromStorage().then(setResults), 30000);
+    return () => clearInterval(iv);
+  }, []);
+
+  async function saveResult(id, s1, s2) {
+    const updated = { ...results, [id]: { s1: parseInt(s1), s2: parseInt(s2) } };
+    setResults(updated); setSaving(true);
+    await saveToStorage(updated);
+    setSaving(false); setEditId(null);
+  }
+
+  async function clearResult(id) {
+    const updated = { ...results };
+    delete updated[id];
+    setResults(updated); setSaving(true);
+    await saveToStorage(updated);
+    setSaving(false);
+  }
+
+  const gamesWithResults = useMemo(() =>
+    GAMES.map(g => ({ ...g, ...( results[g.id] || { s1: null, s2: null } ) })), [results]);
+
+  const rankings = useMemo(() => {
+    return PARTICIPANTS.map(p => {
+      const b = BETS[p.id] || {};
+      let pts=0, exact=0, winner=0, partial=0;
+      for (const g of gamesWithResults) {
+        if (g.s1 === null) continue;
+        const key = `${g.t1}|${g.t2}`;
+        const s = score(g, b[key]);
+        if (s === null) continue;
+        pts += s;
+        if (s===5) exact++;
+        else if (s===3) winner++;
+        else if (s===2) partial++;
+      }
+      return { ...p, pts, exact, winner, partial };
+    }).sort((a,b) => b.pts-a.pts || b.exact-a.exact || b.winner-a.winner);
+  }, [gamesWithResults]);
+
+  const groups = ["A","B","C","D","E","F","G","H","I","J","K","L"];
+
+  if (loading) return html`
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;color:#7a8aaa">
+      <span style="font-size:40px">⚽</span><p>Carregando bolão...</p>
+    </div>`;
+
+  return html`
+    <div style="min-height:100vh">
+      <!-- HEADER -->
+      <header style="background:linear-gradient(135deg,#1a1f3c,#0d1526,#0a1a0f);border-bottom:2px solid #2a6f3a;padding:0 16px">
+        <div style="max-width:900px;margin:0 auto;padding:16px 0">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+            <span style="font-size:32px">⚽</span>
+            <div style="flex:1">
+              <h1 style="margin:0;font-size:22px;font-weight:800;color:#f0f4ff">BOLÃO COPA 2026</h1>
+              <p style="margin:0;font-size:12px;color:#7a8aaa;letter-spacing:1px">11 JUN – 19 JUL · EUA · CANADÁ · MÉXICO</p>
+            </div>
+            <div style="font-size:11px;color:${saving?'#ff9800':'#2a6f3a'};text-align:right">
+              ${saving ? "⟳ Salvando..." : USE_JSONBIN ? "✓ Sync ativo" : "💾 Local"}
+            </div>
+          </div>
+          <nav style="display:flex;gap:4px;margin-top:12px">
+            ${[["ranking","🏆 Ranking"],["games","⚽ Jogos"],["bets","🎯 Palpites"]].map(([id,label]) => html`
+              <button onClick=${()=>setTab(id)} style="padding:8px 16px;border-radius:8px;border:none;font-weight:600;font-size:13px;background:${tab===id?'#2a6f3a':'transparent'};color:${tab===id?'#fff':'#7a8aaa'}">
+                ${label}
+              </button>`)}
+          </nav>
+        </div>
+      </header>
+
+      <main style="max-width:900px;margin:0 auto;padding:20px 16px">
+
+        <!-- RANKING -->
+        ${tab==="ranking" && html`
+          <div>
+            <div style="margin-bottom:20px">
+              <h2 style="margin:0 0 4px;font-size:18px;color:#c8d4ff">Classificação Geral</h2>
+              <p style="margin:0;font-size:13px;color:#556">${gamesWithResults.filter(g=>g.s1!==null).length} de ${GAMES.length} jogos com resultado</p>
+            </div>
+            ${rankings.map((p,i) => {
+              const medals=["🥇","🥈","🥉"];
+              const bgs=["rgba(255,215,0,0.07)","rgba(192,192,192,0.05)","rgba(205,127,50,0.05)","transparent"];
+              const borders=["#b8860b","#666","#8b5a2b","#1e2845"];
+              return html`
+                <div style="background:${bgs[Math.min(i,3)]};border:1px solid ${borders[Math.min(i,3)]};border-radius:12px;padding:14px 18px;margin-bottom:10px;display:flex;align-items:center;gap:14px">
+                  <div style="font-size:24px;width:36px;text-align:center">
+                    ${i<3 ? medals[i] : html`<span style="color:#445;font-size:16px;font-weight:700">${i+1}º</span>`}
+                  </div>
+                  <div style="flex:1">
+                    <div style="font-weight:700;font-size:16px;color:#e8eaf0">${p.name}</div>
+                    <div style="display:flex;gap:12px;margin-top:4px;flex-wrap:wrap">
+                      <span style="font-size:12px;color:#4caf50">✅ ${p.exact} exatos</span>
+                      <span style="font-size:12px;color:#ff9800">🎯 ${p.winner} venc+gols</span>
+                      <span style="font-size:12px;color:#2196f3">↗ ${p.partial} parciais</span>
+                    </div>
+                  </div>
+                  <div style="text-align:right;background:${i===0?'rgba(255,215,0,0.15)':'rgba(255,255,255,0.05)'};border-radius:10px;padding:8px 16px">
+                    <div style="font-size:28px;font-weight:900;color:${i===0?'#ffd700':'#c8d4ff'};line-height:1">${p.pts}</div>
+                    <div style="font-size:11px;color:#556;margin-top:2px">PONTOS</div>
+                  </div>
+                </div>`;
+            })}
+            <div style="margin-top:24px;background:#111929;border-radius:12px;padding:16px;border:1px solid #1e2845">
+              <h3 style="margin:0 0 12px;font-size:14px;color:#7a8aaa">Sistema de Pontuação</h3>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                ${[["🎯 Placar Exato","5 pts"],["🏆 Vencedor + Gols do Vencedor","3 pts"],["✅ Vencedor Correto","2 pts"],["❌ Errou","0 pts"]].map(([d,v])=>html`
+                  <div style="display:flex;justify-content:space-between;font-size:13px;color:#8899bb">
+                    <span>${d}</span><span style="font-weight:700;color:#c8d4ff">${v}</span>
+                  </div>`)}
+              </div>
+            </div>
+          </div>`}
+
+        <!-- JOGOS -->
+        ${tab==="games" && html`
+          <div>
+            <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+              <span style="font-size:13px;color:#7a8aaa">Grupo:</span>
+              <button onClick=${()=>setGrpFilter("all")} style="padding:5px 12px;border-radius:6px;border:none;font-size:12px;font-weight:600;background:${grpFilter==='all'?'#2a6f3a':'#1e2845'};color:${grpFilter==='all'?'#fff':'#8899bb'}">Todos</button>
+              ${groups.map(g=>html`
+                <button onClick=${()=>setGrpFilter(g)} style="padding:5px 12px;border-radius:6px;border:none;font-size:12px;font-weight:600;background:${grpFilter===g?'#2a6f3a':'#1e2845'};color:${grpFilter===g?'#fff':'#8899bb'}">${g}</button>`)}
+            </div>
+            ${(grpFilter==="all" ? groups : [grpFilter]).map(grp => html`
+              <div style="margin-bottom:24px">
+                <h3 style="margin:0 0 10px;font-size:14px;color:#2a6f3a;letter-spacing:1px">● GRUPO ${grp}</h3>
+                ${gamesWithResults.filter(g=>g.g===grp).map(game => html`
+                  <${GameCard} game=${game} editId=${editId} setEditId=${setEditId} editS=${editS} setEditS=${setEditS}
+                    saveResult=${saveResult} clearResult=${clearResult} setModal=${setModal} />`)}
+              </div>`)}
+          </div>`}
+
+        <!-- PALPITES -->
+        ${tab==="bets" && html`
+          <div>
+            <h2 style="margin:0 0 8px;font-size:18px;color:#c8d4ff">Palpites por Jogo</h2>
+            <p style="margin:0 0 16px;font-size:13px;color:#556">Clique em um jogo para ver os palpites de todos</p>
+            ${groups.map(grp => html`
+              <div style="margin-bottom:20px">
+                <h3 style="margin:0 0 8px;font-size:13px;color:#2a6f3a;letter-spacing:1px">● GRUPO ${grp}</h3>
+                ${gamesWithResults.filter(g=>g.g===grp).map(game => html`
+                  <button onClick=${()=>setModal(game)} style="width:100%;background:${modal?.id===game.id?'#1e3a5f':'#111929'};border:1px solid ${modal?.id===game.id?'#3a7fd0':'#1e2845'};border-radius:8px;padding:10px 14px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;color:#c8d4ff;text-align:left">
+                    <span style="font-size:13px"><span style="color:#556;margin-right:8px">J${game.id}</span>${game.t1} × ${game.t2}</span>
+                    <span style="font-size:12px;color:#556">${game.date}</span>
+                  </button>`)}
+              </div>`)}
+          </div>`}
+
+      </main>
+
+      <!-- PALPITES MODAL -->
+      ${modal && html`
+        <div class="modal-backdrop" onClick=${()=>setModal(null)}>
+          <div class="modal" onClick=${e=>e.stopPropagation()}>
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+              <div>
+                <div style="font-size:12px;color:#556;margin-bottom:4px">Jogo ${modal.id} · Grupo ${modal.g}</div>
+                <div style="font-size:18px;font-weight:700;color:#e8eaf0">${flag(modal.t1)} ${modal.t1} × ${modal.t2} ${flag(modal.t2)}</div>
+                <div style="font-size:12px;color:#556;margin-top:4px">${modal.date} · ${modal.time} · ${modal.city}</div>
+              </div>
+              <button onClick=${()=>setModal(null)} style="background:none;border:none;color:#556;font-size:20px;line-height:1">✕</button>
+            </div>
+            ${modal.s1 !== null && html`
+              <div style="background:#0a1226;border-radius:10px;padding:12px 20px;margin-bottom:16px;text-align:center;border:1px solid #2a6f3a">
+                <div style="font-size:12px;color:#2a6f3a;margin-bottom:4px">RESULTADO OFICIAL</div>
+                <div style="font-size:36px;font-weight:900;letter-spacing:4px">
+                  <span style="color:#4caf50">${modal.s1}</span>
+                  <span style="color:#334;margin:0 8px">–</span>
+                  <span style="color:#4caf50">${modal.s2}</span>
+                </div>
+              </div>`}
+            <div style="display:flex;flex-direction:column;gap:8px">
+              ${PARTICIPANTS.map(p => {
+                const bet = (BETS[p.id]||{})[`${modal.t1}|${modal.t2}`];
+                const pts = modal.s1 !== null ? score(modal, bet) : null;
+                const ptCol = {5:"#4caf50",3:"#ff9800",2:"#2196f3",0:"#f44336"};
+                return html`
+                  <div style="background:#0d1526;border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:12px;border:1px solid ${pts!==null?(pts>0?'#1e3a2f':'#3a1e1e'):'#1a2035'}">
+                    <div style="flex:1;font-weight:600;font-size:14px">${p.name}</div>
+                    ${bet ? html`<div style="font-size:22px;font-weight:700;color:#8899bb;letter-spacing:2px">${bet.s1} <span style="color:#334">–</span> ${bet.s2}</div>` : html`<div style="font-size:13px;color:#334">sem palpite</div>`}
+                    ${pts !== null && html`
+                      <div style="width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:${ptCol[pts]}22;color:${ptCol[pts]};font-weight:800;font-size:14px">${pts}</div>`}
+                  </div>`;
+              })}
+            </div>
+          </div>
+        </div>`}
+    </div>`;
+}
+
+function GameCard({ game, editId, setEditId, editS, setEditS, saveResult, clearResult, setModal }) {
+  const hasResult = game.s1 !== null;
+  const isEditing = editId === game.id;
+  return html`
+    <div style="background:#0d1526;border:1px solid ${hasResult?'#1e3a2f':'#1e2845'};border-radius:10px;padding:12px 16px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div style="min-width:72px;font-size:11px;color:#445">${game.date}<br/>${game.time}</div>
+        <div style="flex:1;display:flex;align-items:center;gap:8px;min-width:180px">
+          <span style="font-size:14px;font-weight:600;color:#c8d4ff">${game.t1}</span>
+          ${hasResult
+            ? html`<span style="font-size:20px;font-weight:900;color:#4caf50;letter-spacing:2px">${game.s1} – ${game.s2}</span>`
+            : html`<span style="color:#334;font-size:16px">×</span>`}
+          <span style="font-size:14px;font-weight:600;color:#c8d4ff">${game.t2}</span>
+        </div>
+        <div style="font-size:11px;color:#334">${game.city}</div>
+        <div style="display:flex;gap:6px">
+          <button onClick=${()=>setModal(game)} style="background:#1e2845;border:none;border-radius:6px;padding:5px 10px;color:#7a8aaa;font-size:12px;font-weight:600">🎯 Ver</button>
+          <button onClick=${()=>{setEditId(game.id);setEditS({s1:game.s1??'',s2:game.s2??''});}} style="background:${hasResult?'#1e3a2f':'#1e2845'};border:none;border-radius:6px;padding:5px 10px;color:${hasResult?'#4caf50':'#7a8aaa'};font-size:12px;font-weight:600">
+            ${hasResult?"✏️ Editar":"➕ Resultado"}
+          </button>
+          ${hasResult && html`<button onClick=${()=>clearResult(game.id)} style="background:#3a1e1e;border:none;border-radius:6px;padding:5px 8px;color:#f44336;font-size:12px">🗑</button>`}
+        </div>
+      </div>
+      ${isEditing && html`
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #1e2845;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-size:13px;color:#7a8aaa">Resultado:</span>
+          <span style="font-size:13px;color:#c8d4ff;font-weight:600">${game.t1}</span>
+          <input type="number" min="0" max="20" value=${editS.s1} onInput=${e=>setEditS(s=>({...s,s1:e.target.value}))}
+            style="width:48px;text-align:center;background:#0a1226;border:1px solid #2a6f3a;border-radius:6px;color:#4caf50;font-size:18px;font-weight:700;padding:4px 6px" />
+          <span style="color:#334">–</span>
+          <input type="number" min="0" max="20" value=${editS.s2} onInput=${e=>setEditS(s=>({...s,s2:e.target.value}))}
+            style="width:48px;text-align:center;background:#0a1226;border:1px solid #2a6f3a;border-radius:6px;color:#4caf50;font-size:18px;font-weight:700;padding:4px 6px" />
+          <span style="font-size:13px;color:#c8d4ff;font-weight:600">${game.t2}</span>
+          <button onClick=${()=>saveResult(game.id,editS.s1,editS.s2)} style="background:#2a6f3a;border:none;border-radius:6px;padding:6px 14px;color:#fff;font-weight:700;font-size:13px">✓ Salvar</button>
+          <button onClick=${()=>setEditId(null)} style="background:#1e2845;border:none;border-radius:6px;padding:6px 10px;color:#7a8aaa;font-size:13px">✕</button>
+        </div>`}
+    </div>`;
+}
+
+render(html`<${App}/>`, document.getElementById("app"));
+</script>
+</body>
+</html>
