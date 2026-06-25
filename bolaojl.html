@@ -12,7 +12,9 @@
   body { background: #0a0f1e; color: #e8eaf0; font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
   button { cursor: pointer; font-family: inherit; }
   input { font-family: inherit; }
-  ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #0a0f1e; } ::-webkit-scrollbar-thumb { background: #1e2845; border-radius: 3px; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #0a0f1e; }
+  ::-webkit-scrollbar-thumb { background: #1e2845; border-radius: 3px; }
   .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,10,0.85); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; }
   .modal { background: #111929; border-radius: 16px; padding: 24px; max-width: 500px; width: 100%; border: 1px solid #1e3a5f; max-height: 90vh; overflow-y: auto; }
 </style>
@@ -24,119 +26,141 @@ const { h, render } = preact;
 const { useState, useEffect, useMemo } = preactHooks;
 const html = htm.bind(h);
 
-// ── STORAGE KEY (JSONBin.io – substitua BIN_ID e API_KEY pelos seus) ──────────
-// Para usar sem banco de dados, os resultados ficam só no localStorage (apenas local)
-// Siga o README para configurar JSONBin e ter sync compartilhado
-const USE_JSONBIN = true;
-const JSONBIN_ID  = "6a2aa9eaf5f4af5e29dec185";
-const JSONBIN_KEY = "$2a$10$7FwoG6fqX/nC5XCF8eEzmOzqGaJY5RmwPIl0h8JqBO7NYQww0wWqS";
+// ── GOOGLE APPS SCRIPT ────────────────────────────────────────────────────────
+// Substitua pela URL gerada ao implantar o Apps Script como "App da Web"
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyfto_is5Pu5JC-walATjF2B5zw_CjdeD4lF7WQ_k1fe6LxWgS_WikBUuNsvJE51NRDlw/exec";
 
-const STORAGE_KEY = "bolao2026_results";
-
-async function loadFromStorage() {
-  if (USE_JSONBIN) {
-    const res = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_ID}/latest`, {
-      headers: { "X-Access-Key": JSONBIN_KEY }
-    });
-    const json = await res.json();
-    return json.record || {};
-  }
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch { return {}; }
-}
-
-async function saveToStorage(data) {
-  if (USE_JSONBIN) {
-    await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_ID}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", "X-Access-Key": JSONBIN_KEY },
-      body: JSON.stringify(data)
-    });
-  } else {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+async function loadResults() {
+  try {
+    const res = await fetch(APPS_SCRIPT_URL);
+    const data = await res.json();
+    // Converte { "A1": { home: 2, away: 0 } } → { gameId: { s1, s2 } }
+    const out = {};
+    for (const [key, val] of Object.entries(data.results || {})) {
+      // O Apps Script usa IDs de letra+número (A1, B3…); o app usa ids numéricos
+      // Fazemos o mapeamento aqui via GAME_ID_MAP
+      const numId = GAME_ID_MAP[key];
+      if (numId !== undefined) out[numId] = { s1: val.home, s2: val.away };
+    }
+    return out;
+  } catch (err) {
+    console.error("Erro ao carregar resultados:", err);
+    return {};
   }
 }
 
-// ── DATA ──────────────────────────────────────────────────────────────────────
+async function saveResult(jogoId, home, away) {
+  // jogoId aqui é a chave de letra (ex: "A1") — veja GAME_ID_MAP invertido
+  try {
+    await fetch(APPS_SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({ jogoId, home, away }),
+      headers: { "Content-Type": "application/json" }
+    });
+  } catch (err) {
+    console.error("Erro ao salvar resultado:", err);
+  }
+}
+
+// ── MAPA: id numérico do jogo → id de letra da planilha ──────────────────────
+const GAME_LETTER_MAP = {
+  1:"A1",2:"A2",3:"A3",4:"A4",5:"A5",6:"A6",
+  7:"B1",8:"B2",9:"B3",10:"B4",11:"B5",12:"B6",
+  13:"C1",14:"C2",15:"C3",16:"C4",17:"C5",18:"C6",
+  19:"D1",20:"D2",21:"D3",22:"D4",23:"D5",24:"D6",
+  25:"E1",26:"E2",27:"E3",28:"E4",29:"E5",30:"E6",
+  31:"F1",32:"F2",33:"F3",34:"F4",35:"F5",36:"F6",
+  37:"G1",38:"G2",39:"G3",40:"G4",41:"G5",42:"G6",
+  43:"H1",44:"H2",45:"H3",46:"H4",47:"H5",48:"H6",
+  49:"I1",50:"I2",51:"I3",52:"I4",53:"I5",54:"I6",
+  55:"J1",56:"J2",57:"J3",58:"J4",59:"J5",60:"J6",
+  61:"K1",62:"K2",63:"K3",64:"K4",65:"K5",66:"K6",
+  67:"L1",68:"L2",69:"L3",70:"L4",71:"L5",72:"L6",
+};
+// Invertido: letra → numérico
+const GAME_ID_MAP = Object.fromEntries(Object.entries(GAME_LETTER_MAP).map(([k,v])=>[v,+k]));
+
+// ── DADOS ─────────────────────────────────────────────────────────────────────
 const PARTICIPANTS = [
-  { id: "01", name: "Eduardo G" }, { id: "02", name: "Eduardo K" },
-  { id: "03", name: "Camila" },    { id: "04", name: "Marina" },
-  { id: "05", name: "Leandro" },   { id: "06", name: "Tiago" },
-  { id: "07", name: "Adriano" },   { id: "08", name: "Thaís" },
+  { id:"01", name:"Eduardo G" }, { id:"02", name:"Eduardo K" },
+  { id:"03", name:"Camila" },    { id:"04", name:"Marina" },
+  { id:"05", name:"Leandro" },   { id:"06", name:"Tiago" },
+  { id:"07", name:"Adriano" },   { id:"08", name:"Thaís" },
 ];
 
 const GAMES = [
-  { id:1,  t1:"México",         t2:"África do Sul",  date:"11/06", time:"16:00", city:"Azteca",       g:"A" },
-  { id:2,  t1:"Coreia do Sul",  t2:"Tchéquia",       date:"11/06", time:"23:00", city:"Guadalajara",  g:"A" },
-  { id:3,  t1:"Tchéquia",       t2:"África do Sul",  date:"18/06", time:"13:00", city:"Atlanta",      g:"A" },
-  { id:4,  t1:"México",         t2:"Coreia do Sul",  date:"18/06", time:"22:00", city:"Guadalajara",  g:"A" },
-  { id:5,  t1:"Tchéquia",       t2:"México",         date:"24/06", time:"22:00", city:"Azteca",       g:"A" },
-  { id:6,  t1:"África do Sul",  t2:"Coreia do Sul",  date:"24/06", time:"22:00", city:"Monterrey",    g:"A" },
-  { id:7,  t1:"Canadá",         t2:"Bósnia e Herz.", date:"12/06", time:"16:00", city:"Toronto",      g:"B" },
-  { id:8,  t1:"Catar",          t2:"Suíça",          date:"13/06", time:"16:00", city:"Santa Clara",  g:"B" },
-  { id:9,  t1:"Canadá",         t2:"Catar",          date:"18/06", time:"19:00", city:"Vancouver",    g:"B" },
-  { id:10, t1:"Suíça",          t2:"Bósnia e Herz.", date:"18/06", time:"16:00", city:"Los Angeles",  g:"B" },
-  { id:11, t1:"Suíça",          t2:"Canadá",         date:"24/06", time:"16:00", city:"Vancouver",    g:"B" },
-  { id:12, t1:"Bósnia e Herz.", t2:"Catar",          date:"24/06", time:"16:00", city:"Seattle",      g:"B" },
-  { id:13, t1:"Brasil",         t2:"Marrocos",       date:"13/06", time:"19:00", city:"NY / NJ",      g:"C" },
-  { id:14, t1:"Haiti",          t2:"Escócia",        date:"13/06", time:"22:00", city:"Boston",       g:"C" },
-  { id:15, t1:"Brasil",         t2:"Haiti",          date:"19/06", time:"21:30", city:"Filadélfia",   g:"C" },
-  { id:16, t1:"Escócia",        t2:"Marrocos",       date:"19/06", time:"19:00", city:"Boston",       g:"C" },
-  { id:17, t1:"Escócia",        t2:"Brasil",         date:"24/06", time:"19:00", city:"Miami",        g:"C" },
-  { id:18, t1:"Marrocos",       t2:"Haiti",          date:"24/06", time:"19:00", city:"Atlanta",      g:"C" },
-  { id:19, t1:"EUA",            t2:"Paraguai",       date:"12/06", time:"22:00", city:"Los Angeles",  g:"D" },
-  { id:20, t1:"Austrália",      t2:"Turquia",        date:"13/06", time:"01:00", city:"Vancouver",    g:"D" },
-  { id:21, t1:"EUA",            t2:"Austrália",      date:"19/06", time:"16:00", city:"Seattle",      g:"D" },
-  { id:22, t1:"Turquia",        t2:"Paraguai",       date:"19/06", time:"00:00", city:"Santa Clara",  g:"D" },
-  { id:23, t1:"Turquia",        t2:"EUA",            date:"25/06", time:"23:00", city:"Los Angeles",  g:"D" },
-  { id:24, t1:"Paraguai",       t2:"Austrália",      date:"25/06", time:"23:00", city:"Santa Clara",  g:"D" },
-  { id:25, t1:"Alemanha",       t2:"Curaçau",        date:"14/06", time:"14:00", city:"Houston",      g:"E" },
-  { id:26, t1:"Costa do Marfim",t2:"Equador",        date:"14/06", time:"20:00", city:"Filadélfia",   g:"E" },
-  { id:27, t1:"Alemanha",       t2:"Costa do Marfim",date:"19/06", time:"17:00", city:"Toronto",      g:"E" },
-  { id:28, t1:"Equador",        t2:"Curaçau",        date:"19/06", time:"21:00", city:"Kansas City",  g:"E" },
-  { id:29, t1:"Equador",        t2:"Alemanha",       date:"24/06", time:"17:00", city:"NY / NJ",      g:"E" },
-  { id:30, t1:"Curaçau",        t2:"Costa do Marfim",date:"24/06", time:"17:00", city:"Filadélfia",   g:"E" },
-  { id:31, t1:"Holanda",        t2:"Japão",          date:"14/06", time:"17:00", city:"Dallas",       g:"F" },
-  { id:32, t1:"Suécia",         t2:"Tunísia",        date:"14/06", time:"22:00", city:"Monterrey",    g:"F" },
-  { id:33, t1:"Holanda",        t2:"Suécia",         date:"19/06", time:"17:00", city:"Houston",      g:"F" },
-  { id:34, t1:"Tunísia",        t2:"Japão",          date:"19/06", time:"23:00", city:"Monterrey",    g:"F" },
-  { id:35, t1:"Tunísia",        t2:"Holanda",        date:"24/06", time:"20:00", city:"Kansas City",  g:"F" },
-  { id:36, t1:"Japão",          t2:"Suécia",         date:"24/06", time:"20:00", city:"Dallas",       g:"F" },
-  { id:37, t1:"Bélgica",        t2:"Egito",          date:"15/06", time:"16:00", city:"Seattle",      g:"G" },
-  { id:38, t1:"Irão",           t2:"Nova Zelândia",  date:"15/06", time:"22:00", city:"Los Angeles",  g:"G" },
-  { id:39, t1:"Bélgica",        t2:"Irão",           date:"20/06", time:"16:00", city:"Los Angeles",  g:"G" },
-  { id:40, t1:"Nova Zelândia",  t2:"Egito",          date:"20/06", time:"22:00", city:"Vancouver",    g:"G" },
-  { id:41, t1:"Nova Zelândia",  t2:"Bélgica",        date:"25/06", time:"00:00", city:"Vancouver",    g:"G" },
-  { id:42, t1:"Egito",          t2:"Irão",           date:"25/06", time:"00:00", city:"Seattle",      g:"G" },
-  { id:43, t1:"Espanha",        t2:"Cabo Verde",     date:"15/06", time:"13:00", city:"Atlanta",      g:"H" },
-  { id:44, t1:"Arábia Saudita", t2:"Uruguai",        date:"15/06", time:"19:00", city:"Miami",        g:"H" },
-  { id:45, t1:"Espanha",        t2:"Arábia Saudita", date:"20/06", time:"13:00", city:"Atlanta",      g:"H" },
-  { id:46, t1:"Uruguai",        t2:"Cabo Verde",     date:"20/06", time:"19:00", city:"Miami",        g:"H" },
-  { id:47, t1:"Uruguai",        t2:"Espanha",        date:"25/06", time:"21:00", city:"Guadalajara",  g:"H" },
-  { id:48, t1:"Cabo Verde",     t2:"Arábia Saudita", date:"25/06", time:"21:00", city:"Houston",      g:"H" },
-  { id:49, t1:"França",         t2:"Senegal",        date:"16/06", time:"16:00", city:"NY / NJ",      g:"I" },
-  { id:50, t1:"Iraque",         t2:"Noruega",        date:"16/06", time:"19:00", city:"Boston",       g:"I" },
-  { id:51, t1:"França",         t2:"Iraque",         date:"21/06", time:"18:00", city:"Filadélfia",   g:"I" },
-  { id:52, t1:"Noruega",        t2:"Senegal",        date:"21/06", time:"21:00", city:"NY / NJ",      g:"I" },
-  { id:53, t1:"Noruega",        t2:"França",         date:"25/06", time:"16:00", city:"Boston",       g:"I" },
-  { id:54, t1:"Senegal",        t2:"Iraque",         date:"25/06", time:"16:00", city:"Toronto",      g:"I" },
-  { id:55, t1:"Argentina",      t2:"Argélia",        date:"16/06", time:"22:00", city:"Kansas City",  g:"J" },
-  { id:56, t1:"Áustria",        t2:"Jordânia",       date:"17/06", time:"01:00", city:"Santa Clara",  g:"J" },
-  { id:57, t1:"Argentina",      t2:"Áustria",        date:"21/06", time:"14:00", city:"Dallas",       g:"J" },
-  { id:58, t1:"Jordânia",       t2:"Argélia",        date:"22/06", time:"00:00", city:"Santa Clara",  g:"J" },
-  { id:59, t1:"Jordânia",       t2:"Argentina",      date:"26/06", time:"23:00", city:"Dallas",       g:"J" },
-  { id:60, t1:"Argélia",        t2:"Áustria",        date:"26/06", time:"23:00", city:"Kansas City",  g:"J" },
-  { id:61, t1:"Portugal",       t2:"RD Congo",       date:"17/06", time:"14:00", city:"Houston",      g:"K" },
-  { id:62, t1:"Uzbequistão",    t2:"Colômbia",       date:"17/06", time:"21:00", city:"Azteca",       g:"K" },
-  { id:63, t1:"Portugal",       t2:"Uzbequistão",    date:"22/06", time:"14:00", city:"Houston",      g:"K" },
-  { id:64, t1:"Colômbia",       t2:"RD Congo",       date:"22/06", time:"23:00", city:"Guadalajara",  g:"K" },
-  { id:65, t1:"Colômbia",       t2:"Portugal",       date:"27/06", time:"20:30", city:"Miami",        g:"K" },
-  { id:66, t1:"RD Congo",       t2:"Uzbequistão",    date:"27/06", time:"20:30", city:"Atlanta",      g:"K" },
-  { id:67, t1:"Inglaterra",     t2:"Croácia",        date:"17/06", time:"17:00", city:"Dallas",       g:"L" },
-  { id:68, t1:"Gana",           t2:"Panamá",         date:"17/06", time:"20:00", city:"Toronto",      g:"L" },
-  { id:69, t1:"Inglaterra",     t2:"Gana",           date:"22/06", time:"17:00", city:"Boston",       g:"L" },
-  { id:70, t1:"Panamá",         t2:"Croácia",        date:"22/06", time:"20:00", city:"Toronto",      g:"L" },
-  { id:71, t1:"Panamá",         t2:"Inglaterra",     date:"27/06", time:"18:00", city:"NY / NJ",      g:"L" },
-  { id:72, t1:"Croácia",        t2:"Gana",           date:"27/06", time:"18:00", city:"Filadélfia",   g:"L" },
+  { id:1,  t1:"México",          t2:"África do Sul",  date:"11/06", time:"16:00", city:"Azteca",       g:"A" },
+  { id:2,  t1:"Coreia do Sul",   t2:"Tchéquia",       date:"11/06", time:"23:00", city:"Guadalajara",  g:"A" },
+  { id:3,  t1:"Tchéquia",        t2:"África do Sul",  date:"18/06", time:"13:00", city:"Atlanta",      g:"A" },
+  { id:4,  t1:"México",          t2:"Coreia do Sul",  date:"18/06", time:"22:00", city:"Guadalajara",  g:"A" },
+  { id:5,  t1:"Tchéquia",        t2:"México",         date:"24/06", time:"22:00", city:"Azteca",       g:"A" },
+  { id:6,  t1:"África do Sul",   t2:"Coreia do Sul",  date:"24/06", time:"22:00", city:"Monterrey",    g:"A" },
+  { id:7,  t1:"Canadá",          t2:"Bósnia e Herz.", date:"12/06", time:"16:00", city:"Toronto",      g:"B" },
+  { id:8,  t1:"Catar",           t2:"Suíça",          date:"13/06", time:"16:00", city:"Santa Clara",  g:"B" },
+  { id:9,  t1:"Canadá",          t2:"Catar",          date:"18/06", time:"19:00", city:"Vancouver",    g:"B" },
+  { id:10, t1:"Suíça",           t2:"Bósnia e Herz.", date:"18/06", time:"16:00", city:"Los Angeles",  g:"B" },
+  { id:11, t1:"Suíça",           t2:"Canadá",         date:"24/06", time:"16:00", city:"Vancouver",    g:"B" },
+  { id:12, t1:"Bósnia e Herz.",  t2:"Catar",          date:"24/06", time:"16:00", city:"Seattle",      g:"B" },
+  { id:13, t1:"Brasil",          t2:"Marrocos",       date:"13/06", time:"19:00", city:"NY / NJ",      g:"C" },
+  { id:14, t1:"Haiti",           t2:"Escócia",        date:"13/06", time:"22:00", city:"Boston",       g:"C" },
+  { id:15, t1:"Brasil",          t2:"Haiti",          date:"19/06", time:"21:30", city:"Filadélfia",   g:"C" },
+  { id:16, t1:"Escócia",         t2:"Marrocos",       date:"19/06", time:"19:00", city:"Boston",       g:"C" },
+  { id:17, t1:"Escócia",         t2:"Brasil",         date:"24/06", time:"19:00", city:"Miami",        g:"C" },
+  { id:18, t1:"Marrocos",        t2:"Haiti",          date:"24/06", time:"19:00", city:"Atlanta",      g:"C" },
+  { id:19, t1:"EUA",             t2:"Paraguai",       date:"12/06", time:"22:00", city:"Los Angeles",  g:"D" },
+  { id:20, t1:"Austrália",       t2:"Turquia",        date:"13/06", time:"01:00", city:"Vancouver",    g:"D" },
+  { id:21, t1:"EUA",             t2:"Austrália",      date:"19/06", time:"16:00", city:"Seattle",      g:"D" },
+  { id:22, t1:"Turquia",         t2:"Paraguai",       date:"19/06", time:"00:00", city:"Santa Clara",  g:"D" },
+  { id:23, t1:"Turquia",         t2:"EUA",            date:"25/06", time:"23:00", city:"Los Angeles",  g:"D" },
+  { id:24, t1:"Paraguai",        t2:"Austrália",      date:"25/06", time:"23:00", city:"Santa Clara",  g:"D" },
+  { id:25, t1:"Alemanha",        t2:"Curaçau",        date:"14/06", time:"14:00", city:"Houston",      g:"E" },
+  { id:26, t1:"Costa do Marfim", t2:"Equador",        date:"14/06", time:"20:00", city:"Filadélfia",   g:"E" },
+  { id:27, t1:"Alemanha",        t2:"Costa do Marfim",date:"19/06", time:"17:00", city:"Toronto",      g:"E" },
+  { id:28, t1:"Equador",         t2:"Curaçau",        date:"19/06", time:"21:00", city:"Kansas City",  g:"E" },
+  { id:29, t1:"Equador",         t2:"Alemanha",       date:"24/06", time:"17:00", city:"NY / NJ",      g:"E" },
+  { id:30, t1:"Curaçau",         t2:"Costa do Marfim",date:"24/06", time:"17:00", city:"Filadélfia",   g:"E" },
+  { id:31, t1:"Holanda",         t2:"Japão",          date:"14/06", time:"17:00", city:"Dallas",       g:"F" },
+  { id:32, t1:"Suécia",          t2:"Tunísia",        date:"14/06", time:"22:00", city:"Monterrey",    g:"F" },
+  { id:33, t1:"Holanda",         t2:"Suécia",         date:"19/06", time:"17:00", city:"Houston",      g:"F" },
+  { id:34, t1:"Tunísia",         t2:"Japão",          date:"19/06", time:"23:00", city:"Monterrey",    g:"F" },
+  { id:35, t1:"Tunísia",         t2:"Holanda",        date:"24/06", time:"20:00", city:"Kansas City",  g:"F" },
+  { id:36, t1:"Japão",           t2:"Suécia",         date:"24/06", time:"20:00", city:"Dallas",       g:"F" },
+  { id:37, t1:"Bélgica",         t2:"Egito",          date:"15/06", time:"16:00", city:"Seattle",      g:"G" },
+  { id:38, t1:"Irão",            t2:"Nova Zelândia",  date:"15/06", time:"22:00", city:"Los Angeles",  g:"G" },
+  { id:39, t1:"Bélgica",         t2:"Irão",           date:"20/06", time:"16:00", city:"Los Angeles",  g:"G" },
+  { id:40, t1:"Nova Zelândia",   t2:"Egito",          date:"20/06", time:"22:00", city:"Vancouver",    g:"G" },
+  { id:41, t1:"Nova Zelândia",   t2:"Bélgica",        date:"25/06", time:"00:00", city:"Vancouver",    g:"G" },
+  { id:42, t1:"Egito",           t2:"Irão",           date:"25/06", time:"00:00", city:"Seattle",      g:"G" },
+  { id:43, t1:"Espanha",         t2:"Cabo Verde",     date:"15/06", time:"13:00", city:"Atlanta",      g:"H" },
+  { id:44, t1:"Arábia Saudita",  t2:"Uruguai",        date:"15/06", time:"19:00", city:"Miami",        g:"H" },
+  { id:45, t1:"Espanha",         t2:"Arábia Saudita", date:"20/06", time:"13:00", city:"Atlanta",      g:"H" },
+  { id:46, t1:"Uruguai",         t2:"Cabo Verde",     date:"20/06", time:"19:00", city:"Miami",        g:"H" },
+  { id:47, t1:"Uruguai",         t2:"Espanha",        date:"25/06", time:"21:00", city:"Guadalajara",  g:"H" },
+  { id:48, t1:"Cabo Verde",      t2:"Arábia Saudita", date:"25/06", time:"21:00", city:"Houston",      g:"H" },
+  { id:49, t1:"França",          t2:"Senegal",        date:"16/06", time:"16:00", city:"NY / NJ",      g:"I" },
+  { id:50, t1:"Iraque",          t2:"Noruega",        date:"16/06", time:"19:00", city:"Boston",       g:"I" },
+  { id:51, t1:"França",          t2:"Iraque",         date:"21/06", time:"18:00", city:"Filadélfia",   g:"I" },
+  { id:52, t1:"Noruega",         t2:"Senegal",        date:"21/06", time:"21:00", city:"NY / NJ",      g:"I" },
+  { id:53, t1:"Noruega",         t2:"França",         date:"25/06", time:"16:00", city:"Boston",       g:"I" },
+  { id:54, t1:"Senegal",         t2:"Iraque",         date:"25/06", time:"16:00", city:"Toronto",      g:"I" },
+  { id:55, t1:"Argentina",       t2:"Argélia",        date:"16/06", time:"22:00", city:"Kansas City",  g:"J" },
+  { id:56, t1:"Áustria",         t2:"Jordânia",       date:"17/06", time:"01:00", city:"Santa Clara",  g:"J" },
+  { id:57, t1:"Argentina",       t2:"Áustria",        date:"21/06", time:"14:00", city:"Dallas",       g:"J" },
+  { id:58, t1:"Jordânia",        t2:"Argélia",        date:"22/06", time:"00:00", city:"Santa Clara",  g:"J" },
+  { id:59, t1:"Jordânia",        t2:"Argentina",      date:"26/06", time:"23:00", city:"Dallas",       g:"J" },
+  { id:60, t1:"Argélia",         t2:"Áustria",        date:"26/06", time:"23:00", city:"Kansas City",  g:"J" },
+  { id:61, t1:"Portugal",        t2:"RD Congo",       date:"17/06", time:"14:00", city:"Houston",      g:"K" },
+  { id:62, t1:"Uzbequistão",     t2:"Colômbia",       date:"17/06", time:"21:00", city:"Azteca",       g:"K" },
+  { id:63, t1:"Portugal",        t2:"Uzbequistão",    date:"22/06", time:"14:00", city:"Houston",      g:"K" },
+  { id:64, t1:"Colômbia",        t2:"RD Congo",       date:"22/06", time:"23:00", city:"Guadalajara",  g:"K" },
+  { id:65, t1:"Colômbia",        t2:"Portugal",       date:"27/06", time:"20:30", city:"Miami",        g:"K" },
+  { id:66, t1:"RD Congo",        t2:"Uzbequistão",    date:"27/06", time:"20:30", city:"Atlanta",      g:"K" },
+  { id:67, t1:"Inglaterra",      t2:"Croácia",        date:"17/06", time:"17:00", city:"Dallas",       g:"L" },
+  { id:68, t1:"Gana",            t2:"Panamá",         date:"17/06", time:"20:00", city:"Toronto",      g:"L" },
+  { id:69, t1:"Inglaterra",      t2:"Gana",           date:"22/06", time:"17:00", city:"Boston",       g:"L" },
+  { id:70, t1:"Panamá",          t2:"Croácia",        date:"22/06", time:"20:00", city:"Toronto",      g:"L" },
+  { id:71, t1:"Panamá",          t2:"Inglaterra",     date:"27/06", time:"18:00", city:"NY / NJ",      g:"L" },
+  { id:72, t1:"Croácia",         t2:"Gana",           date:"27/06", time:"18:00", city:"Filadélfia",   g:"L" },
 ];
 
 const BETS = {
@@ -153,8 +177,8 @@ const BETS = {
 const FLAGS = {"México":"🇲🇽","África do Sul":"🇿🇦","Coreia do Sul":"🇰🇷","Tchéquia":"🇨🇿","Canadá":"🇨🇦","Bósnia e Herz.":"🇧🇦","Catar":"🇶🇦","Suíça":"🇨🇭","Brasil":"🇧🇷","Marrocos":"🇲🇦","Haiti":"🇭🇹","Escócia":"🏴󠁧󠁢󠁳󠁣󠁴󠁿","EUA":"🇺🇸","Paraguai":"🇵🇾","Austrália":"🇦🇺","Turquia":"🇹🇷","Alemanha":"🇩🇪","Curaçau":"🇨🇼","Costa do Marfim":"🇨🇮","Equador":"🇪🇨","Holanda":"🇳🇱","Japão":"🇯🇵","Suécia":"🇸🇪","Tunísia":"🇹🇳","Bélgica":"🇧🇪","Egito":"🇪🇬","Irão":"🇮🇷","Nova Zelândia":"🇳🇿","Espanha":"🇪🇸","Cabo Verde":"🇨🇻","Arábia Saudita":"🇸🇦","Uruguai":"🇺🇾","França":"🇫🇷","Senegal":"🇸🇳","Iraque":"🇮🇶","Noruega":"🇳🇴","Argentina":"🇦🇷","Argélia":"🇩🇿","Áustria":"🇦🇹","Jordânia":"🇯🇴","Portugal":"🇵🇹","RD Congo":"🇨🇩","Uzbequistão":"🇺🇿","Colômbia":"🇨🇴","Inglaterra":"🏴󠁧󠁢󠁥󠁮󠁧󠁿","Croácia":"🇭🇷","Gana":"🇬🇭","Panamá":"🇵🇦"};
 const flag = t => FLAGS[t] || "🏴";
 
-// ── SCORING ───────────────────────────────────────────────────────────────────
-function score(real, bet) {
+// ── PONTUAÇÃO ─────────────────────────────────────────────────────────────────
+function calcScore(real, bet) {
   if (real.s1 === null || !bet) return null;
   if (bet.s1 === real.s1 && bet.s2 === real.s2) return 5;
   const rw = real.s1 > real.s2 ? 1 : real.s1 < real.s2 ? 2 : 0;
@@ -163,68 +187,85 @@ function score(real, bet) {
   return Math.max(real.s1, real.s2) === Math.max(bet.s1, bet.s2) ? 3 : 2;
 }
 
-// ── COMPONENTS ────────────────────────────────────────────────────────────────
+// ── APP ───────────────────────────────────────────────────────────────────────
 function App() {
-  const [results, setResults] = useState({});
-  const [loading, setLoading]   = useState(true);
-  const [saving, setSaving]     = useState(false);
-  const [tab, setTab]           = useState("ranking");
+  const [results, setResults]     = useState({});
+  const [loading, setLoading]     = useState(true);
+  const [saving, setSaving]       = useState(false);
+  const [syncOk, setSyncOk]       = useState(false);
+  const [tab, setTab]             = useState("ranking");
   const [grpFilter, setGrpFilter] = useState("all");
-  const [editId, setEditId]     = useState(null);
-  const [editS, setEditS]       = useState({s1:"",s2:""});
-  const [modal, setModal]       = useState(null); // game object for palpites modal
+  const [editId, setEditId]       = useState(null);
+  const [editS, setEditS]         = useState({ s1: "", s2: "" });
+  const [modal, setModal]         = useState(null);
 
   useEffect(() => {
-    loadFromStorage().then(d => { setResults(d); setLoading(false); });
-    const iv = setInterval(() => loadFromStorage().then(setResults), 30000);
+    loadResults().then(d => {
+      setResults(d);
+      setLoading(false);
+      setSyncOk(true);
+    }).catch(() => setLoading(false));
+    const iv = setInterval(() => {
+      loadResults().then(d => { setResults(d); setSyncOk(true); }).catch(() => {});
+    }, 60000);
     return () => clearInterval(iv);
   }, []);
 
-  async function saveResult(id, s1, s2) {
+  async function handleSave(id, s1, s2) {
+    const letterKey = GAME_LETTER_MAP[id];
     const updated = { ...results, [id]: { s1: parseInt(s1), s2: parseInt(s2) } };
-    setResults(updated); setSaving(true);
-    await saveToStorage(updated);
-    setSaving(false); setEditId(null);
+    setResults(updated);
+    setSaving(true);
+    await saveResult(letterKey, parseInt(s1), parseInt(s2));
+    setSaving(false);
+    setEditId(null);
   }
 
-  async function clearResult(id) {
+  async function handleClear(id) {
     const updated = { ...results };
     delete updated[id];
-    setResults(updated); setSaving(true);
-    await saveToStorage(updated);
+    setResults(updated);
+    // Apaga na planilha enviando valores vazios
+    setSaving(true);
+    await saveResult(GAME_LETTER_MAP[id], "", "");
     setSaving(false);
   }
 
   const gamesWithResults = useMemo(() =>
-    GAMES.map(g => ({ ...g, ...( results[g.id] || { s1: null, s2: null } ) })), [results]);
+    GAMES.map(g => ({ ...g, ...(results[g.id] || { s1: null, s2: null }) })),
+    [results]
+  );
 
   const rankings = useMemo(() => {
     return PARTICIPANTS.map(p => {
       const b = BETS[p.id] || {};
-      let pts=0, exact=0, winner=0, partial=0;
+      let pts = 0, exact = 0, winner = 0, partial = 0;
       for (const g of gamesWithResults) {
         if (g.s1 === null) continue;
         const key = `${g.t1}|${g.t2}`;
-        const s = score(g, b[key]);
+        const s = calcScore(g, b[key]);
         if (s === null) continue;
         pts += s;
-        if (s===5) exact++;
-        else if (s===3) winner++;
-        else if (s===2) partial++;
+        if (s === 5) exact++;
+        else if (s === 3) winner++;
+        else if (s === 2) partial++;
       }
       return { ...p, pts, exact, winner, partial };
-    }).sort((a,b) => b.pts-a.pts || b.exact-a.exact || b.winner-a.winner);
+    }).sort((a, b) => b.pts - a.pts || b.exact - a.exact || b.winner - a.winner);
   }, [gamesWithResults]);
 
   const groups = ["A","B","C","D","E","F","G","H","I","J","K","L"];
+  const played = gamesWithResults.filter(g => g.s1 !== null).length;
 
   if (loading) return html`
     <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;color:#7a8aaa">
-      <span style="font-size:40px">⚽</span><p>Carregando bolão...</p>
+      <span style="font-size:48px">⚽</span>
+      <p style="font-size:16px">Carregando bolão...</p>
     </div>`;
 
   return html`
     <div style="min-height:100vh">
+
       <!-- HEADER -->
       <header style="background:linear-gradient(135deg,#1a1f3c,#0d1526,#0a1a0f);border-bottom:2px solid #2a6f3a;padding:0 16px">
         <div style="max-width:900px;margin:0 auto;padding:16px 0">
@@ -234,13 +275,13 @@ function App() {
               <h1 style="margin:0;font-size:22px;font-weight:800;color:#f0f4ff">BOLÃO COPA 2026</h1>
               <p style="margin:0;font-size:12px;color:#7a8aaa;letter-spacing:1px">11 JUN – 19 JUL · EUA · CANADÁ · MÉXICO</p>
             </div>
-            <div style="font-size:11px;color:${saving?'#ff9800':'#2a6f3a'};text-align:right">
-              ${saving ? "⟳ Salvando..." : USE_JSONBIN ? "✓ Sync ativo" : "💾 Local"}
+            <div style="font-size:11px;text-align:right;color:${saving ? '#ff9800' : syncOk ? '#4caf50' : '#f44336'}">
+              ${saving ? "⟳ Salvando..." : syncOk ? "✓ Google Sheets" : "⚠ Sem conexão"}
             </div>
           </div>
           <nav style="display:flex;gap:4px;margin-top:12px">
-            ${[["ranking","🏆 Ranking"],["games","⚽ Jogos"],["bets","🎯 Palpites"]].map(([id,label]) => html`
-              <button onClick=${()=>setTab(id)} style="padding:8px 16px;border-radius:8px;border:none;font-weight:600;font-size:13px;background:${tab===id?'#2a6f3a':'transparent'};color:${tab===id?'#fff':'#7a8aaa'}">
+            ${[["ranking","🏆 Ranking"],["games","⚽ Jogos"],["bets","🎯 Palpites"]].map(([id, label]) => html`
+              <button onClick=${() => setTab(id)} style="padding:8px 16px;border-radius:8px;border:none;font-weight:600;font-size:13px;background:${tab === id ? '#2a6f3a' : 'transparent'};color:${tab === id ? '#fff' : '#7a8aaa'}">
                 ${label}
               </button>`)}
           </nav>
@@ -250,20 +291,20 @@ function App() {
       <main style="max-width:900px;margin:0 auto;padding:20px 16px">
 
         <!-- RANKING -->
-        ${tab==="ranking" && html`
+        ${tab === "ranking" && html`
           <div>
             <div style="margin-bottom:20px">
               <h2 style="margin:0 0 4px;font-size:18px;color:#c8d4ff">Classificação Geral</h2>
-              <p style="margin:0;font-size:13px;color:#556">${gamesWithResults.filter(g=>g.s1!==null).length} de ${GAMES.length} jogos com resultado</p>
+              <p style="margin:0;font-size:13px;color:#556">${played} de ${GAMES.length} jogos com resultado</p>
             </div>
-            ${rankings.map((p,i) => {
-              const medals=["🥇","🥈","🥉"];
-              const bgs=["rgba(255,215,0,0.07)","rgba(192,192,192,0.05)","rgba(205,127,50,0.05)","transparent"];
-              const borders=["#b8860b","#666","#8b5a2b","#1e2845"];
+            ${rankings.map((p, i) => {
+              const medals = ["🥇","🥈","🥉"];
+              const bgs = ["rgba(255,215,0,0.07)","rgba(192,192,192,0.05)","rgba(205,127,50,0.05)","transparent"];
+              const borders = ["#b8860b","#666","#8b5a2b","#1e2845"];
               return html`
                 <div style="background:${bgs[Math.min(i,3)]};border:1px solid ${borders[Math.min(i,3)]};border-radius:12px;padding:14px 18px;margin-bottom:10px;display:flex;align-items:center;gap:14px">
                   <div style="font-size:24px;width:36px;text-align:center">
-                    ${i<3 ? medals[i] : html`<span style="color:#445;font-size:16px;font-weight:700">${i+1}º</span>`}
+                    ${i < 3 ? medals[i] : html`<span style="color:#445;font-size:16px;font-weight:700">${i+1}º</span>`}
                   </div>
                   <div style="flex:1">
                     <div style="font-weight:700;font-size:16px;color:#e8eaf0">${p.name}</div>
@@ -282,7 +323,7 @@ function App() {
             <div style="margin-top:24px;background:#111929;border-radius:12px;padding:16px;border:1px solid #1e2845">
               <h3 style="margin:0 0 12px;font-size:14px;color:#7a8aaa">Sistema de Pontuação</h3>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-                ${[["🎯 Placar Exato","5 pts"],["🏆 Vencedor + Gols do Vencedor","3 pts"],["✅ Vencedor Correto","2 pts"],["❌ Errou","0 pts"]].map(([d,v])=>html`
+                ${[["🎯 Placar Exato","5 pts"],["🏆 Vencedor + Gols do Vencedor","3 pts"],["✅ Vencedor Correto","2 pts"],["❌ Errou","0 pts"]].map(([d,v]) => html`
                   <div style="display:flex;justify-content:space-between;font-size:13px;color:#8899bb">
                     <span>${d}</span><span style="font-weight:700;color:#c8d4ff">${v}</span>
                   </div>`)}
@@ -291,33 +332,41 @@ function App() {
           </div>`}
 
         <!-- JOGOS -->
-        ${tab==="games" && html`
+        ${tab === "games" && html`
           <div>
             <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
               <span style="font-size:13px;color:#7a8aaa">Grupo:</span>
-              <button onClick=${()=>setGrpFilter("all")} style="padding:5px 12px;border-radius:6px;border:none;font-size:12px;font-weight:600;background:${grpFilter==='all'?'#2a6f3a':'#1e2845'};color:${grpFilter==='all'?'#fff':'#8899bb'}">Todos</button>
-              ${groups.map(g=>html`
-                <button onClick=${()=>setGrpFilter(g)} style="padding:5px 12px;border-radius:6px;border:none;font-size:12px;font-weight:600;background:${grpFilter===g?'#2a6f3a':'#1e2845'};color:${grpFilter===g?'#fff':'#8899bb'}">${g}</button>`)}
+              <button onClick=${() => setGrpFilter("all")} style="padding:5px 12px;border-radius:6px;border:none;font-size:12px;font-weight:600;background:${grpFilter==='all'?'#2a6f3a':'#1e2845'};color:${grpFilter==='all'?'#fff':'#8899bb'}">Todos</button>
+              ${groups.map(g => html`
+                <button onClick=${() => setGrpFilter(g)} style="padding:5px 12px;border-radius:6px;border:none;font-size:12px;font-weight:600;background:${grpFilter===g?'#2a6f3a':'#1e2845'};color:${grpFilter===g?'#fff':'#8899bb'}">${g}</button>`)}
             </div>
-            ${(grpFilter==="all" ? groups : [grpFilter]).map(grp => html`
+            ${(grpFilter === "all" ? groups : [grpFilter]).map(grp => html`
               <div style="margin-bottom:24px">
                 <h3 style="margin:0 0 10px;font-size:14px;color:#2a6f3a;letter-spacing:1px">● GRUPO ${grp}</h3>
-                ${gamesWithResults.filter(g=>g.g===grp).map(game => html`
-                  <${GameCard} game=${game} editId=${editId} setEditId=${setEditId} editS=${editS} setEditS=${setEditS}
-                    saveResult=${saveResult} clearResult=${clearResult} setModal=${setModal} />`)}
+                ${gamesWithResults.filter(g => g.g === grp).map(game => html`
+                  <${GameCard}
+                    game=${game}
+                    editId=${editId}
+                    setEditId=${setEditId}
+                    editS=${editS}
+                    setEditS=${setEditS}
+                    onSave=${handleSave}
+                    onClear=${handleClear}
+                    setModal=${setModal}
+                  />`)}
               </div>`)}
           </div>`}
 
         <!-- PALPITES -->
-        ${tab==="bets" && html`
+        ${tab === "bets" && html`
           <div>
             <h2 style="margin:0 0 8px;font-size:18px;color:#c8d4ff">Palpites por Jogo</h2>
             <p style="margin:0 0 16px;font-size:13px;color:#556">Clique em um jogo para ver os palpites de todos</p>
             ${groups.map(grp => html`
               <div style="margin-bottom:20px">
                 <h3 style="margin:0 0 8px;font-size:13px;color:#2a6f3a;letter-spacing:1px">● GRUPO ${grp}</h3>
-                ${gamesWithResults.filter(g=>g.g===grp).map(game => html`
-                  <button onClick=${()=>setModal(game)} style="width:100%;background:${modal?.id===game.id?'#1e3a5f':'#111929'};border:1px solid ${modal?.id===game.id?'#3a7fd0':'#1e2845'};border-radius:8px;padding:10px 14px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;color:#c8d4ff;text-align:left">
+                ${gamesWithResults.filter(g => g.g === grp).map(game => html`
+                  <button onClick=${() => setModal(game)} style="width:100%;background:${modal?.id===game.id?'#1e3a5f':'#111929'};border:1px solid ${modal?.id===game.id?'#3a7fd0':'#1e2845'};border-radius:8px;padding:10px 14px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;color:#c8d4ff;text-align:left">
                     <span style="font-size:13px"><span style="color:#556;margin-right:8px">J${game.id}</span>${game.t1} × ${game.t2}</span>
                     <span style="font-size:12px;color:#556">${game.date}</span>
                   </button>`)}
@@ -326,17 +375,17 @@ function App() {
 
       </main>
 
-      <!-- PALPITES MODAL -->
+      <!-- MODAL DE PALPITES -->
       ${modal && html`
-        <div class="modal-backdrop" onClick=${()=>setModal(null)}>
-          <div class="modal" onClick=${e=>e.stopPropagation()}>
+        <div class="modal-backdrop" onClick=${() => setModal(null)}>
+          <div class="modal" onClick=${e => e.stopPropagation()}>
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
               <div>
                 <div style="font-size:12px;color:#556;margin-bottom:4px">Jogo ${modal.id} · Grupo ${modal.g}</div>
                 <div style="font-size:18px;font-weight:700;color:#e8eaf0">${flag(modal.t1)} ${modal.t1} × ${modal.t2} ${flag(modal.t2)}</div>
                 <div style="font-size:12px;color:#556;margin-top:4px">${modal.date} · ${modal.time} · ${modal.city}</div>
               </div>
-              <button onClick=${()=>setModal(null)} style="background:none;border:none;color:#556;font-size:20px;line-height:1">✕</button>
+              <button onClick=${() => setModal(null)} style="background:none;border:none;color:#556;font-size:20px;line-height:1">✕</button>
             </div>
             ${modal.s1 !== null && html`
               <div style="background:#0a1226;border-radius:10px;padding:12px 20px;margin-bottom:16px;text-align:center;border:1px solid #2a6f3a">
@@ -349,13 +398,15 @@ function App() {
               </div>`}
             <div style="display:flex;flex-direction:column;gap:8px">
               ${PARTICIPANTS.map(p => {
-                const bet = (BETS[p.id]||{})[`${modal.t1}|${modal.t2}`];
-                const pts = modal.s1 !== null ? score(modal, bet) : null;
-                const ptCol = {5:"#4caf50",3:"#ff9800",2:"#2196f3",0:"#f44336"};
+                const bet = (BETS[p.id] || {})[`${modal.t1}|${modal.t2}`];
+                const pts = modal.s1 !== null ? calcScore(modal, bet) : null;
+                const ptCol = { 5:"#4caf50", 3:"#ff9800", 2:"#2196f3", 0:"#f44336" };
                 return html`
                   <div style="background:#0d1526;border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:12px;border:1px solid ${pts!==null?(pts>0?'#1e3a2f':'#3a1e1e'):'#1a2035'}">
                     <div style="flex:1;font-weight:600;font-size:14px">${p.name}</div>
-                    ${bet ? html`<div style="font-size:22px;font-weight:700;color:#8899bb;letter-spacing:2px">${bet.s1} <span style="color:#334">–</span> ${bet.s2}</div>` : html`<div style="font-size:13px;color:#334">sem palpite</div>`}
+                    ${bet
+                      ? html`<div style="font-size:22px;font-weight:700;color:#8899bb;letter-spacing:2px">${bet.s1} <span style="color:#334">–</span> ${bet.s2}</div>`
+                      : html`<div style="font-size:13px;color:#334">sem palpite</div>`}
                     ${pts !== null && html`
                       <div style="width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:${ptCol[pts]}22;color:${ptCol[pts]};font-weight:800;font-size:14px">${pts}</div>`}
                   </div>`;
@@ -366,7 +417,7 @@ function App() {
     </div>`;
 }
 
-function GameCard({ game, editId, setEditId, editS, setEditS, saveResult, clearResult, setModal }) {
+function GameCard({ game, editId, setEditId, editS, setEditS, onSave, onClear, setModal }) {
   const hasResult = game.s1 !== null;
   const isEditing = editId === game.id;
   return html`
@@ -382,25 +433,31 @@ function GameCard({ game, editId, setEditId, editS, setEditS, saveResult, clearR
         </div>
         <div style="font-size:11px;color:#334">${game.city}</div>
         <div style="display:flex;gap:6px">
-          <button onClick=${()=>setModal(game)} style="background:#1e2845;border:none;border-radius:6px;padding:5px 10px;color:#7a8aaa;font-size:12px;font-weight:600">🎯 Ver</button>
-          <button onClick=${()=>{setEditId(game.id);setEditS({s1:game.s1??'',s2:game.s2??''});}} style="background:${hasResult?'#1e3a2f':'#1e2845'};border:none;border-radius:6px;padding:5px 10px;color:${hasResult?'#4caf50':'#7a8aaa'};font-size:12px;font-weight:600">
-            ${hasResult?"✏️ Editar":"➕ Resultado"}
+          <button onClick=${() => setModal(game)} style="background:#1e2845;border:none;border-radius:6px;padding:5px 10px;color:#7a8aaa;font-size:12px;font-weight:600">🎯 Ver</button>
+          <button onClick=${() => { setEditId(game.id); setEditS({ s1: game.s1 ?? '', s2: game.s2 ?? '' }); }}
+            style="background:${hasResult?'#1e3a2f':'#1e2845'};border:none;border-radius:6px;padding:5px 10px;color:${hasResult?'#4caf50':'#7a8aaa'};font-size:12px;font-weight:600">
+            ${hasResult ? "✏️ Editar" : "➕ Resultado"}
           </button>
-          ${hasResult && html`<button onClick=${()=>clearResult(game.id)} style="background:#3a1e1e;border:none;border-radius:6px;padding:5px 8px;color:#f44336;font-size:12px">🗑</button>`}
+          ${hasResult && html`
+            <button onClick=${() => onClear(game.id)} style="background:#3a1e1e;border:none;border-radius:6px;padding:5px 8px;color:#f44336;font-size:12px">🗑</button>`}
         </div>
       </div>
       ${isEditing && html`
         <div style="margin-top:12px;padding-top:12px;border-top:1px solid #1e2845;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span style="font-size:13px;color:#7a8aaa">Resultado:</span>
           <span style="font-size:13px;color:#c8d4ff;font-weight:600">${game.t1}</span>
-          <input type="number" min="0" max="20" value=${editS.s1} onInput=${e=>setEditS(s=>({...s,s1:e.target.value}))}
+          <input type="number" min="0" max="20" value=${editS.s1}
+            onInput=${e => setEditS(s => ({ ...s, s1: e.target.value }))}
             style="width:48px;text-align:center;background:#0a1226;border:1px solid #2a6f3a;border-radius:6px;color:#4caf50;font-size:18px;font-weight:700;padding:4px 6px" />
           <span style="color:#334">–</span>
-          <input type="number" min="0" max="20" value=${editS.s2} onInput=${e=>setEditS(s=>({...s,s2:e.target.value}))}
+          <input type="number" min="0" max="20" value=${editS.s2}
+            onInput=${e => setEditS(s => ({ ...s, s2: e.target.value }))}
             style="width:48px;text-align:center;background:#0a1226;border:1px solid #2a6f3a;border-radius:6px;color:#4caf50;font-size:18px;font-weight:700;padding:4px 6px" />
           <span style="font-size:13px;color:#c8d4ff;font-weight:600">${game.t2}</span>
-          <button onClick=${()=>saveResult(game.id,editS.s1,editS.s2)} style="background:#2a6f3a;border:none;border-radius:6px;padding:6px 14px;color:#fff;font-weight:700;font-size:13px">✓ Salvar</button>
-          <button onClick=${()=>setEditId(null)} style="background:#1e2845;border:none;border-radius:6px;padding:6px 10px;color:#7a8aaa;font-size:13px">✕</button>
+          <button onClick=${() => onSave(game.id, editS.s1, editS.s2)}
+            style="background:#2a6f3a;border:none;border-radius:6px;padding:6px 14px;color:#fff;font-weight:700;font-size:13px">✓ Salvar</button>
+          <button onClick=${() => setEditId(null)}
+            style="background:#1e2845;border:none;border-radius:6px;padding:6px 10px;color:#7a8aaa;font-size:13px">✕</button>
         </div>`}
     </div>`;
 }
