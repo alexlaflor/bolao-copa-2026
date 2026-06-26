@@ -38,10 +38,14 @@ async function loadResults() {
       const numId = GAME_ID_MAP[key];
       if (numId !== undefined) out[numId] = { s1: val.home, s2: val.away };
     }
-    return { groups: out, knockout: data.knockout || {} };
+    return {
+      groups:       out,
+      knockout:     data.knockout     || {},
+      knockoutBets: data.knockoutBets || {},
+    };
   } catch (err) {
     console.error("Erro ao carregar resultados:", err);
-    return { groups: {}, knockout: {} };
+    return { groups: {}, knockout: {}, knockoutBets: {} };
   }
 }
 
@@ -52,9 +56,7 @@ async function saveResult(jogoId, home, away) {
       body: JSON.stringify({ type: "grupo", jogoId, home, away }),
       headers: { "Content-Type": "application/json" }
     });
-  } catch (err) {
-    console.error("Erro ao salvar resultado:", err);
-  }
+  } catch (err) { console.error("Erro ao salvar resultado:", err); }
 }
 
 async function saveKnockoutResult(jogoId, home, away, team1, team2) {
@@ -64,12 +66,10 @@ async function saveKnockoutResult(jogoId, home, away, team1, team2) {
       body: JSON.stringify({ type: "knockout", jogoId: String(jogoId), home, away, team1, team2 }),
       headers: { "Content-Type": "application/json" }
     });
-  } catch (err) {
-    console.error("Erro ao salvar mata-mata:", err);
-  }
+  } catch (err) { console.error("Erro ao salvar mata-mata:", err); }
 }
 
-// ── MAPA: id numérico → id de letra da planilha ───────────────────────────────
+// ── MAPA IDs ──────────────────────────────────────────────────────────────────
 const GAME_LETTER_MAP = {
   1:"A1",2:"A2",3:"A3",4:"A4",5:"A5",6:"A6",
   7:"B1",8:"B2",9:"B3",10:"B4",11:"B5",12:"B6",
@@ -170,9 +170,8 @@ const GAMES = [
   { id:72, t1:"Croácia",         t2:"Gana",           date:"27/06", time:"18:00", city:"Filadélfia",   g:"L" },
 ];
 
-// ── JOGOS DO MATA-MATA ────────────────────────────────────────────────────────
+// ── JOGOS MATA-MATA ───────────────────────────────────────────────────────────
 const KNOCKOUT_GAMES = [
-  // 16 AVOS DE FINAL
   { id:73,  phase:'dezesseis', team1:'África do Sul',   team2:'Canadá',             city:'Los Angeles',      date:'28/jun' },
   { id:74,  phase:'dezesseis', team1:'Brasil',           team2:'Japão',              city:'Houston',          date:'29/jun' },
   { id:75,  phase:'dezesseis', team1:'Alemanha',         team2:'3º A/B/C/D/F',       city:'Boston',           date:'29/jun', p2:true },
@@ -189,7 +188,6 @@ const KNOCKOUT_GAMES = [
   { id:86,  phase:'dezesseis', team1:'1º Grupo D',       team2:'2º Grupo G',         city:'Dallas',           date:'03/jul', p2:true },
   { id:87,  phase:'dezesseis', team1:'Argentina',        team2:'2º Grupo H',         city:'Miami',            date:'03/jul', p2:true },
   { id:88,  phase:'dezesseis', team1:'1º Grupo K',       team2:'3º D/E/I/J/L',       city:'Kansas City',      date:'03/jul', p1:true, p2:true },
-  // OITAVAS DE FINAL
   { id:89,  phase:'oitavas',   team1:'Vencedor J74',     team2:'Vencedor J77',       city:'Houston',          date:'04/jul', p1:true, p2:true },
   { id:90,  phase:'oitavas',   team1:'Vencedor J73',     team2:'Vencedor J75',       city:'Cidade do México', date:'04/jul', p1:true, p2:true },
   { id:91,  phase:'oitavas',   team1:'Vencedor J76',     team2:'Vencedor J78',       city:'Dallas',           date:'05/jul', p1:true, p2:true },
@@ -198,30 +196,27 @@ const KNOCKOUT_GAMES = [
   { id:94,  phase:'oitavas',   team1:'Vencedor J81',     team2:'Vencedor J82',       city:'Philadelphia',     date:'06/jul', p1:true, p2:true },
   { id:95,  phase:'oitavas',   team1:'Vencedor J86',     team2:'Vencedor J88',       city:'Seattle',          date:'07/jul', p1:true, p2:true },
   { id:96,  phase:'oitavas',   team1:'Vencedor J85',     team2:'Vencedor J87',       city:'New York/NJ',      date:'07/jul', p1:true, p2:true },
-  // QUARTAS DE FINAL
   { id:97,  phase:'quartas',   team1:'Vencedor J89',     team2:'Vencedor J90',       city:'Boston',           date:'09/jul', p1:true, p2:true },
   { id:98,  phase:'quartas',   team1:'Vencedor J93',     team2:'Vencedor J94',       city:'Los Angeles',      date:'09/jul', p1:true, p2:true },
   { id:99,  phase:'quartas',   team1:'Vencedor J91',     team2:'Vencedor J92',       city:'Miami',            date:'10/jul', p1:true, p2:true },
   { id:100, phase:'quartas',   team1:'Vencedor J95',     team2:'Vencedor J96',       city:'Kansas City',      date:'11/jul', p1:true, p2:true },
-  // SEMIFINAL
   { id:101, phase:'semi',      team1:'Vencedor J97',     team2:'Vencedor J98',       city:'Dallas',           date:'14/jul', p1:true, p2:true },
   { id:102, phase:'semi',      team1:'Vencedor J99',     team2:'Vencedor J100',      city:'Atlanta',          date:'15/jul', p1:true, p2:true },
-  // 3º LUGAR
   { id:103, phase:'terceiro',  team1:'Perdedor J101',    team2:'Perdedor J102',      city:'Miami',            date:'18/jul', p1:true, p2:true },
-  // FINAL
   { id:104, phase:'final',     team1:'Vencedor J101',    team2:'Vencedor J102',      city:'Nova Iorque / NJ', date:'19/jul', p1:true, p2:true },
 ];
 
 const PHASE_LABELS = {
-  dezesseis: '⚽ 16 Avos de Final',
-  oitavas:   '⚽ Oitavas de Final',
-  quartas:   '⚽ Quartas de Final',
-  semi:      '⚽ Semifinal',
-  terceiro:  '🥉 3º Lugar',
-  final:     '🏆 Grande Final',
+  dezesseis:'⚽ 16 Avos de Final', oitavas:'⚽ Oitavas de Final',
+  quartas:'⚽ Quartas de Final',   semi:'⚽ Semifinal',
+  terceiro:'🥉 3º Lugar',          final:'🏆 Grande Final',
+};
+const PHASE_COLORS = {
+  dezesseis:'#1a7a3c', oitavas:'#2e75b6', quartas:'#2e75b6',
+  semi:'#2e75b6', terceiro:'#595959', final:'#b8860b',
 };
 
-// ── PALPITES ──────────────────────────────────────────────────────────────────
+// ── PALPITES FASE DE GRUPOS ───────────────────────────────────────────────────
 const BETS = {
   "01": {"México|África do Sul":{s1:2,s2:0},"Coreia do Sul|Tchéquia":{s1:1,s2:1},"Tchéquia|África do Sul":{s1:1,s2:0},"México|Coreia do Sul":{s1:1,s2:1},"Tchéquia|México":{s1:0,s2:1},"África do Sul|Coreia do Sul":{s1:1,s2:3},"Canadá|Bósnia e Herz.":{s1:1,s2:0},"Catar|Suíça":{s1:0,s2:2},"Canadá|Catar":{s1:3,s2:1},"Suíça|Bósnia e Herz.":{s1:1,s2:0},"Suíça|Canadá":{s1:0,s2:0},"Bósnia e Herz.|Catar":{s1:3,s2:1},"Brasil|Marrocos":{s1:2,s2:1},"Haiti|Escócia":{s1:1,s2:2},"Brasil|Haiti":{s1:3,s2:0},"Escócia|Marrocos":{s1:0,s2:1},"Escócia|Brasil":{s1:0,s2:2},"Marrocos|Haiti":{s1:3,s2:1},"EUA|Paraguai":{s1:1,s2:0},"Austrália|Turquia":{s1:1,s2:2},"EUA|Austrália":{s1:2,s2:2},"Turquia|Paraguai":{s1:1,s2:0},"Turquia|EUA":{s1:1,s2:1},"Paraguai|Austrália":{s1:1,s2:0},"Alemanha|Curaçau":{s1:4,s2:0},"Costa do Marfim|Equador":{s1:1,s2:1},"Alemanha|Costa do Marfim":{s1:2,s2:1},"Equador|Curaçau":{s1:2,s2:0},"Equador|Alemanha":{s1:0,s2:1},"Curaçau|Costa do Marfim":{s1:1,s2:3},"Holanda|Japão":{s1:1,s2:0},"Suécia|Tunísia":{s1:2,s2:0},"Holanda|Suécia":{s1:2,s2:1},"Tunísia|Japão":{s1:0,s2:2},"Tunísia|Holanda":{s1:1,s2:3},"Japão|Suécia":{s1:2,s2:1},"Bélgica|Egito":{s1:2,s2:1},"Irão|Nova Zelândia":{s1:1,s2:0},"Bélgica|Irão":{s1:1,s2:0},"Nova Zelândia|Egito":{s1:0,s2:2},"Nova Zelândia|Bélgica":{s1:0,s2:1},"Egito|Irão":{s1:1,s2:1},"Espanha|Cabo Verde":{s1:3,s2:0},"Arábia Saudita|Uruguai":{s1:0,s2:1},"Espanha|Arábia Saudita":{s1:2,s2:0},"Uruguai|Cabo Verde":{s1:2,s2:0},"Uruguai|Espanha":{s1:0,s2:2},"Cabo Verde|Arábia Saudita":{s1:2,s2:1},"França|Senegal":{s1:3,s2:1},"Iraque|Noruega":{s1:0,s2:2},"França|Iraque":{s1:2,s2:0},"Noruega|Senegal":{s1:1,s2:1},"Noruega|França":{s1:1,s2:2},"Senegal|Iraque":{s1:2,s2:1},"Argentina|Argélia":{s1:2,s2:0},"Áustria|Jordânia":{s1:1,s2:0},"Argentina|Áustria":{s1:1,s2:0},"Jordânia|Argélia":{s1:0,s2:2},"Jordânia|Argentina":{s1:0,s2:3},"Argélia|Áustria":{s1:1,s2:1},"Portugal|RD Congo":{s1:2,s2:0},"Uzbequistão|Colômbia":{s1:1,s2:2},"Portugal|Uzbequistão":{s1:2,s2:0},"Colômbia|RD Congo":{s1:2,s2:1},"Colômbia|Portugal":{s1:0,s2:1},"RD Congo|Uzbequistão":{s1:2,s2:1},"Inglaterra|Croácia":{s1:2,s2:0},"Gana|Panamá":{s1:1,s2:0},"Inglaterra|Gana":{s1:2,s2:1},"Panamá|Croácia":{s1:1,s2:2},"Panamá|Inglaterra":{s1:1,s2:3},"Croácia|Gana":{s1:1,s2:1}},
   "02": {"México|África do Sul":{s1:2,s2:0},"Coreia do Sul|Tchéquia":{s1:1,s2:2},"Tchéquia|África do Sul":{s1:3,s2:1},"México|Coreia do Sul":{s1:3,s2:0},"Tchéquia|México":{s1:1,s2:1},"África do Sul|Coreia do Sul":{s1:1,s2:2},"Canadá|Bósnia e Herz.":{s1:2,s2:1},"Catar|Suíça":{s1:0,s2:3},"Canadá|Catar":{s1:3,s2:1},"Suíça|Bósnia e Herz.":{s1:1,s2:0},"Suíça|Canadá":{s1:2,s2:1},"Bósnia e Herz.|Catar":{s1:2,s2:0},"Brasil|Marrocos":{s1:1,s2:1},"Haiti|Escócia":{s1:1,s2:3},"Brasil|Haiti":{s1:4,s2:0},"Escócia|Marrocos":{s1:1,s2:2},"Escócia|Brasil":{s1:0,s2:2},"Marrocos|Haiti":{s1:5,s2:1},"EUA|Paraguai":{s1:1,s2:1},"Austrália|Turquia":{s1:0,s2:2},"EUA|Austrália":{s1:2,s2:0},"Turquia|Paraguai":{s1:3,s2:1},"Turquia|EUA":{s1:2,s2:0},"Paraguai|Austrália":{s1:2,s2:1},"Alemanha|Curaçau":{s1:6,s2:0},"Costa do Marfim|Equador":{s1:0,s2:0},"Alemanha|Costa do Marfim":{s1:3,s2:1},"Equador|Curaçau":{s1:2,s2:0},"Equador|Alemanha":{s1:0,s2:3},"Curaçau|Costa do Marfim":{s1:1,s2:3},"Holanda|Japão":{s1:1,s2:1},"Suécia|Tunísia":{s1:2,s2:0},"Holanda|Suécia":{s1:2,s2:1},"Tunísia|Japão":{s1:0,s2:3},"Tunísia|Holanda":{s1:1,s2:3},"Japão|Suécia":{s1:2,s2:1},"Bélgica|Egito":{s1:2,s2:1},"Irão|Nova Zelândia":{s1:3,s2:0},"Bélgica|Irão":{s1:2,s2:1},"Nova Zelândia|Egito":{s1:0,s2:2},"Nova Zelândia|Bélgica":{s1:0,s2:4},"Egito|Irão":{s1:2,s2:2},"Espanha|Cabo Verde":{s1:4,s2:0},"Arábia Saudita|Uruguai":{s1:1,s2:2},"Espanha|Arábia Saudita":{s1:3,s2:1},"Uruguai|Cabo Verde":{s1:2,s2:0},"Uruguai|Espanha":{s1:0,s2:2},"Cabo Verde|Arábia Saudita":{s1:1,s2:3},"França|Senegal":{s1:2,s2:1},"Iraque|Noruega":{s1:0,s2:2},"França|Iraque":{s1:3,s2:0},"Noruega|Senegal":{s1:4,s2:2},"Noruega|França":{s1:1,s2:2},"Senegal|Iraque":{s1:2,s2:1},"Argentina|Argélia":{s1:1,s2:0},"Áustria|Jordânia":{s1:2,s2:0},"Argentina|Áustria":{s1:1,s2:1},"Jordânia|Argélia":{s1:1,s2:2},"Jordânia|Argentina":{s1:0,s2:3},"Argélia|Áustria":{s1:0,s2:1},"Portugal|RD Congo":{s1:2,s2:0},"Uzbequistão|Colômbia":{s1:0,s2:2},"Portugal|Uzbequistão":{s1:3,s2:1},"Colômbia|RD Congo":{s1:2,s2:1},"Colômbia|Portugal":{s1:1,s2:1},"RD Congo|Uzbequistão":{s1:1,s2:0},"Inglaterra|Croácia":{s1:1,s2:1},"Gana|Panamá":{s1:2,s2:1},"Inglaterra|Gana":{s1:2,s2:0},"Panamá|Croácia":{s1:0,s2:2},"Panamá|Inglaterra":{s1:1,s2:3},"Croácia|Gana":{s1:1,s2:0}},
@@ -236,7 +231,7 @@ const BETS = {
 const FLAGS = {"México":"🇲🇽","África do Sul":"🇿🇦","Coreia do Sul":"🇰🇷","Tchéquia":"🇨🇿","Canadá":"🇨🇦","Bósnia e Herz.":"🇧🇦","Catar":"🇶🇦","Suíça":"🇨🇭","Brasil":"🇧🇷","Marrocos":"🇲🇦","Haiti":"🇭🇹","Escócia":"🏴󠁧󠁢󠁳󠁣󠁴󠁿","EUA":"🇺🇸","Paraguai":"🇵🇾","Austrália":"🇦🇺","Turquia":"🇹🇷","Alemanha":"🇩🇪","Curaçau":"🇨🇼","Costa do Marfim":"🇨🇮","Equador":"🇪🇨","Holanda":"🇳🇱","Japão":"🇯🇵","Suécia":"🇸🇪","Tunísia":"🇹🇳","Bélgica":"🇧🇪","Egito":"🇪🇬","Irão":"🇮🇷","Nova Zelândia":"🇳🇿","Espanha":"🇪🇸","Cabo Verde":"🇨🇻","Arábia Saudita":"🇸🇦","Uruguai":"🇺🇾","França":"🇫🇷","Senegal":"🇸🇳","Iraque":"🇮🇶","Noruega":"🇳🇴","Argentina":"🇦🇷","Argélia":"🇩🇿","Áustria":"🇦🇹","Jordânia":"🇯🇴","Portugal":"🇵🇹","RD Congo":"🇨🇩","Uzbequistão":"🇺🇿","Colômbia":"🇨🇴","Inglaterra":"🏴󠁧󠁢󠁥󠁮󠁧󠁿","Croácia":"🇭🇷","Gana":"🇬🇭","Panamá":"🇵🇦","Bósnia-Herzegovina":"🇧🇦","Estados Unidos":"🇺🇸"};
 const flag = t => FLAGS[t] || "🏴";
 
-// ── PONTUAÇÃO ─────────────────────────────────────────────────────────────────
+// ── PONTUAÇÃO FASE DE GRUPOS (5/3/2/0) ───────────────────────────────────────
 function calcScore(real, bet) {
   if (real.s1 === null || !bet) return null;
   if (bet.s1 === real.s1 && bet.s2 === real.s2) return 5;
@@ -246,23 +241,57 @@ function calcScore(real, bet) {
   return Math.max(real.s1, real.s2) === Math.max(bet.s1, bet.s2) ? 3 : 2;
 }
 
+// ── PONTUAÇÃO MATA-MATA (30/18/12/0) ─────────────────────────────────────────
+// Regras:
+//   30 → placar exato
+//   18 → acertou vencedor + gols do vencedor (placar diferente)
+//   12 → acertou empate (placar errado) OU acertou apenas o vencedor
+//    0 → errou
+function calcKnockoutScore(result, bet) {
+  if (!result || result.goals1 === undefined || !bet) return null;
+  const rg1 = result.goals1, rg2 = result.goals2;
+  const bg1 = bet.goals1,    bg2 = bet.goals2;
+
+  // Placar exato
+  if (bg1 === rg1 && bg2 === rg2) return 30;
+
+  const rWinner = rg1 > rg2 ? 1 : rg1 < rg2 ? 2 : 0; // 0=empate
+  const bWinner = bg1 > bg2 ? 1 : bg1 < bg2 ? 2 : 0;
+
+  // Acertou empate mas placar errado
+  if (rWinner === 0 && bWinner === 0) return 12;
+
+  // Errou o vencedor
+  if (rWinner !== bWinner) return 0;
+
+  // Acertou o vencedor — verifica gols do vencedor
+  const rWinnerGoals = rWinner === 1 ? rg1 : rg2;
+  const bWinnerGoals = bWinner === 1 ? bg1 : bg2;
+  if (rWinnerGoals === bWinnerGoals) return 18;
+
+  // Acertou só o vencedor
+  return 12;
+}
+
 // ── APP ───────────────────────────────────────────────────────────────────────
 function App() {
-  const [results, setResults]     = useState({});
-  const [knockout, setKnockout]   = useState({});
-  const [loading, setLoading]     = useState(true);
-  const [saving, setSaving]       = useState(false);
-  const [syncOk, setSyncOk]       = useState(false);
-  const [tab, setTab]             = useState("ranking");
-  const [grpFilter, setGrpFilter] = useState("all");
-  const [editId, setEditId]       = useState(null);
-  const [editS, setEditS]         = useState({ s1: "", s2: "" });
-  const [modal, setModal]         = useState(null);
+  const [results, setResults]         = useState({});
+  const [knockout, setKnockout]       = useState({});
+  const [knockoutBets, setKnockoutBets] = useState({});
+  const [loading, setLoading]         = useState(true);
+  const [saving, setSaving]           = useState(false);
+  const [syncOk, setSyncOk]           = useState(false);
+  const [tab, setTab]                 = useState("ranking");
+  const [grpFilter, setGrpFilter]     = useState("all");
+  const [editId, setEditId]           = useState(null);
+  const [editS, setEditS]             = useState({ s1: "", s2: "" });
+  const [modal, setModal]             = useState(null);
 
   useEffect(() => {
     loadResults().then(d => {
       setResults(d.groups);
       setKnockout(d.knockout);
+      setKnockoutBets(d.knockoutBets);
       setLoading(false);
       setSyncOk(true);
     }).catch(() => setLoading(false));
@@ -270,6 +299,7 @@ function App() {
       loadResults().then(d => {
         setResults(d.groups);
         setKnockout(d.knockout);
+        setKnockoutBets(d.knockoutBets);
         setSyncOk(true);
       }).catch(() => {});
     }, 60000);
@@ -278,8 +308,7 @@ function App() {
 
   async function handleSave(id, s1, s2) {
     const letterKey = GAME_LETTER_MAP[id];
-    const updated = { ...results, [id]: { s1: parseInt(s1), s2: parseInt(s2) } };
-    setResults(updated);
+    setResults(r => ({ ...r, [id]: { s1: parseInt(s1), s2: parseInt(s2) } }));
     setSaving(true);
     await saveResult(letterKey, parseInt(s1), parseInt(s2));
     setSaving(false);
@@ -287,20 +316,17 @@ function App() {
   }
 
   async function handleClear(id) {
-    const updated = { ...results };
-    delete updated[id];
-    setResults(updated);
+    setResults(r => { const n = {...r}; delete n[id]; return n; });
     setSaving(true);
     await saveResult(GAME_LETTER_MAP[id], "", "");
     setSaving(false);
   }
 
   async function handleSaveKnockout(jogoId, s1, s2, team1, team2) {
-    const updated = {
-      ...knockout,
-      [jogoId]: { ...knockout[jogoId], team1, team2, goals1: parseInt(s1), goals2: parseInt(s2) }
-    };
-    setKnockout(updated);
+    setKnockout(k => ({
+      ...k,
+      [jogoId]: { ...k[jogoId], team1, team2, goals1: parseInt(s1), goals2: parseInt(s2) }
+    }));
     setSaving(true);
     await saveKnockoutResult(jogoId, parseInt(s1), parseInt(s2), team1, team2);
     setSaving(false);
@@ -315,6 +341,7 @@ function App() {
     return PARTICIPANTS.map(p => {
       const b = BETS[p.id] || {};
       let pts = 0, exact = 0, winner = 0, partial = 0;
+      // Pontos fase de grupos
       for (const g of gamesWithResults) {
         if (g.s1 === null) continue;
         const key = `${g.t1}|${g.t2}`;
@@ -325,12 +352,21 @@ function App() {
         else if (s === 3) winner++;
         else if (s === 2) partial++;
       }
-      return { ...p, pts, exact, winner, partial };
-    }).sort((a, b) => b.pts - a.pts || b.exact - a.exact || b.winner - a.winner);
-  }, [gamesWithResults]);
+      // Pontos mata-mata
+      let kopts = 0;
+      for (const game of KNOCKOUT_GAMES) {
+        const result = knockout[game.id];
+        const bet    = knockoutBets[game.id]?.[p.name];
+        const s = calcKnockoutScore(result, bet);
+        if (s !== null) kopts += s;
+      }
+      return { ...p, pts, kopts, total: pts + kopts, exact, winner, partial };
+    }).sort((a, b) => b.total - a.total || b.kopts - a.kopts || b.exact - a.exact);
+  }, [gamesWithResults, knockout, knockoutBets]);
 
   const groups = ["A","B","C","D","E","F","G","H","I","J","K","L"];
   const played = gamesWithResults.filter(g => g.s1 !== null).length;
+  const koPlayed = KNOCKOUT_GAMES.filter(g => knockout[g.id]?.goals1 !== undefined).length;
 
   if (loading) return html`
     <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;color:#7a8aaa">
@@ -351,12 +387,13 @@ function App() {
               <p style="margin:0;font-size:12px;color:#7a8aaa;letter-spacing:1px">11 JUN – 19 JUL · EUA · CANADÁ · MÉXICO</p>
             </div>
             <div style="font-size:11px;text-align:right;color:${saving ? '#ff9800' : syncOk ? '#4caf50' : '#f44336'}">
-              ${saving ? "⟳ Salvando..." : syncOk ? "✓ Google Sheets" : "⚠ Sem conexão"}
+              ${saving ? "⟳ Salvando..." : syncOk ? "✓ Sincronizado" : "⚠ Sem conexão"}
             </div>
           </div>
           <nav style="display:flex;gap:4px;margin-top:12px;flex-wrap:wrap">
             ${[["ranking","🏆 Ranking"],["games","⚽ Jogos"],["bets","🎯 Palpites"],["knockout","🏅 Mata-Mata"]].map(([id, label]) => html`
-              <button onClick=${() => setTab(id)} style="padding:8px 16px;border-radius:8px;border:none;font-weight:600;font-size:13px;background:${tab === id ? '#2a6f3a' : 'transparent'};color:${tab === id ? '#fff' : '#7a8aaa'}">
+              <button onClick=${() => setTab(id)}
+                style="padding:8px 16px;border-radius:8px;border:none;font-weight:600;font-size:13px;background:${tab===id?'#2a6f3a':'transparent'};color:${tab===id?'#fff':'#7a8aaa'}">
                 ${label}
               </button>`)}
           </nav>
@@ -370,12 +407,12 @@ function App() {
           <div>
             <div style="margin-bottom:20px">
               <h2 style="margin:0 0 4px;font-size:18px;color:#c8d4ff">Classificação Geral</h2>
-              <p style="margin:0;font-size:13px;color:#556">${played} de ${GAMES.length} jogos com resultado · Fase de grupos</p>
+              <p style="margin:0;font-size:13px;color:#556">${played}/${GAMES.length} jogos grupos · ${koPlayed}/${KNOCKOUT_GAMES.length} jogos mata-mata</p>
             </div>
             ${rankings.map((p, i) => {
               const medals = ["🥇","🥈","🥉"];
-              const bgs = ["rgba(255,215,0,0.07)","rgba(192,192,192,0.05)","rgba(205,127,50,0.05)","transparent"];
-              const borders = ["#b8860b","#666","#8b5a2b","#1e2845"];
+              const bgs    = ["rgba(255,215,0,0.07)","rgba(192,192,192,0.05)","rgba(205,127,50,0.05)","transparent"];
+              const borders= ["#b8860b","#666","#8b5a2b","#1e2845"];
               return html`
                 <div style="background:${bgs[Math.min(i,3)]};border:1px solid ${borders[Math.min(i,3)]};border-radius:12px;padding:14px 18px;margin-bottom:10px;display:flex;align-items:center;gap:14px">
                   <div style="font-size:24px;width:36px;text-align:center">
@@ -383,23 +420,30 @@ function App() {
                   </div>
                   <div style="flex:1">
                     <div style="font-weight:700;font-size:16px;color:#e8eaf0">${p.name}</div>
-                    <div style="display:flex;gap:12px;margin-top:4px;flex-wrap:wrap">
-                      <span style="font-size:12px;color:#4caf50">✅ ${p.exact} exatos</span>
-                      <span style="font-size:12px;color:#ff9800">🎯 ${p.winner} venc+gols</span>
-                      <span style="font-size:12px;color:#2196f3">↗ ${p.partial} parciais</span>
+                    <div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap">
+                      <span style="font-size:12px;color:#4caf50">grupos: ${p.pts}pts</span>
+                      <span style="font-size:12px;color:#ff9800">mata-mata: ${p.kopts}pts</span>
                     </div>
                   </div>
                   <div style="text-align:right;background:${i===0?'rgba(255,215,0,0.15)':'rgba(255,255,255,0.05)'};border-radius:10px;padding:8px 16px">
-                    <div style="font-size:28px;font-weight:900;color:${i===0?'#ffd700':'#c8d4ff'};line-height:1">${p.pts}</div>
-                    <div style="font-size:11px;color:#556;margin-top:2px">PONTOS</div>
+                    <div style="font-size:28px;font-weight:900;color:${i===0?'#ffd700':'#c8d4ff'};line-height:1">${p.total}</div>
+                    <div style="font-size:11px;color:#556;margin-top:2px">TOTAL</div>
                   </div>
                 </div>`;
             })}
             <div style="margin-top:24px;background:#111929;border-radius:12px;padding:16px;border:1px solid #1e2845">
               <h3 style="margin:0 0 12px;font-size:14px;color:#7a8aaa">Sistema de Pontuação</h3>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-                ${[["🎯 Placar Exato","5 pts"],["🏆 Vencedor + Gols do Vencedor","3 pts"],["✅ Vencedor Correto","2 pts"],["❌ Errou","0 pts"]].map(([d,v]) => html`
-                  <div style="display:flex;justify-content:space-between;font-size:13px;color:#8899bb">
+              <div style="margin-bottom:8px;font-size:12px;font-weight:700;color:#2a6f3a;text-transform:uppercase;letter-spacing:1px">Fase de Grupos</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
+                ${[["🎯 Placar Exato","5pts"],["🏆 Venc. + Gols Venc.","3pts"],["✅ Vencedor Correto","2pts"],["❌ Errou","0pts"]].map(([d,v]) => html`
+                  <div style="display:flex;justify-content:space-between;font-size:12px;color:#8899bb">
+                    <span>${d}</span><span style="font-weight:700;color:#c8d4ff">${v}</span>
+                  </div>`)}
+              </div>
+              <div style="margin-bottom:8px;font-size:12px;font-weight:700;color:#b8860b;text-transform:uppercase;letter-spacing:1px">Mata-Mata</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+                ${[["🎯 Placar Exato","30pts"],["🏆 Venc. + Gols Venc.","18pts"],["✅ Vencedor / Empate","12pts"],["❌ Errou","0pts"]].map(([d,v]) => html`
+                  <div style="display:flex;justify-content:space-between;font-size:12px;color:#8899bb">
                     <span>${d}</span><span style="font-weight:700;color:#c8d4ff">${v}</span>
                   </div>`)}
               </div>
@@ -415,20 +459,13 @@ function App() {
               ${groups.map(g => html`
                 <button onClick=${() => setGrpFilter(g)} style="padding:5px 12px;border-radius:6px;border:none;font-size:12px;font-weight:600;background:${grpFilter===g?'#2a6f3a':'#1e2845'};color:${grpFilter===g?'#fff':'#8899bb'}">${g}</button>`)}
             </div>
-            ${(grpFilter === "all" ? groups : [grpFilter]).map(grp => html`
+            ${(grpFilter==="all" ? groups : [grpFilter]).map(grp => html`
               <div style="margin-bottom:24px">
                 <h3 style="margin:0 0 10px;font-size:14px;color:#2a6f3a;letter-spacing:1px">● GRUPO ${grp}</h3>
-                ${gamesWithResults.filter(g => g.g === grp).map(game => html`
-                  <${GameCard}
-                    game=${game}
-                    editId=${editId}
-                    setEditId=${setEditId}
-                    editS=${editS}
-                    setEditS=${setEditS}
-                    onSave=${handleSave}
-                    onClear=${handleClear}
-                    setModal=${setModal}
-                  />`)}
+                ${gamesWithResults.filter(g => g.g===grp).map(game => html`
+                  <${GameCard} game=${game} editId=${editId} setEditId=${setEditId}
+                    editS=${editS} setEditS=${setEditS}
+                    onSave=${handleSave} onClear=${handleClear} setModal=${setModal} />`)}
               </div>`)}
           </div>`}
 
@@ -440,8 +477,9 @@ function App() {
             ${groups.map(grp => html`
               <div style="margin-bottom:20px">
                 <h3 style="margin:0 0 8px;font-size:13px;color:#2a6f3a;letter-spacing:1px">● GRUPO ${grp}</h3>
-                ${gamesWithResults.filter(g => g.g === grp).map(game => html`
-                  <button onClick=${() => setModal(game)} style="width:100%;background:${modal?.id===game.id?'#1e3a5f':'#111929'};border:1px solid ${modal?.id===game.id?'#3a7fd0':'#1e2845'};border-radius:8px;padding:10px 14px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;color:#c8d4ff;text-align:left">
+                ${gamesWithResults.filter(g => g.g===grp).map(game => html`
+                  <button onClick=${() => setModal(game)}
+                    style="width:100%;background:${modal?.id===game.id?'#1e3a5f':'#111929'};border:1px solid ${modal?.id===game.id?'#3a7fd0':'#1e2845'};border-radius:8px;padding:10px 14px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;color:#c8d4ff;text-align:left">
                     <span style="font-size:13px"><span style="color:#556;margin-right:8px">J${game.id}</span>${game.t1} × ${game.t2}</span>
                     <span style="font-size:12px;color:#556">${game.date}</span>
                   </button>`)}
@@ -450,12 +488,15 @@ function App() {
 
         <!-- MATA-MATA -->
         ${tab === "knockout" && html`
-          <${KnockoutTab} knockout=${knockout} onSave=${handleSaveKnockout} />
-        `}
+          <${KnockoutTab}
+            knockout=${knockout}
+            knockoutBets=${knockoutBets}
+            onSave=${handleSaveKnockout}
+          />`}
 
       </main>
 
-      <!-- MODAL DE PALPITES (fase de grupos) -->
+      <!-- MODAL PALPITES GRUPOS -->
       ${modal && html`
         <div class="modal-backdrop" onClick=${() => setModal(null)}>
           <div class="modal" onClick=${e => e.stopPropagation()}>
@@ -478,9 +519,9 @@ function App() {
               </div>`}
             <div style="display:flex;flex-direction:column;gap:8px">
               ${PARTICIPANTS.map(p => {
-                const bet = (BETS[p.id] || {})[`${modal.t1}|${modal.t2}`];
+                const bet = (BETS[p.id]||{})[`${modal.t1}|${modal.t2}`];
                 const pts = modal.s1 !== null ? calcScore(modal, bet) : null;
-                const ptCol = { 5:"#4caf50", 3:"#ff9800", 2:"#2196f3", 0:"#f44336" };
+                const ptCol = {5:"#4caf50",3:"#ff9800",2:"#2196f3",0:"#f44336"};
                 return html`
                   <div style="background:#0d1526;border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:12px;border:1px solid ${pts!==null?(pts>0?'#1e3a2f':'#3a1e1e'):'#1a2035'}">
                     <div style="flex:1;font-weight:600;font-size:14px">${p.name}</div>
@@ -497,7 +538,7 @@ function App() {
     </div>`;
 }
 
-// ── GAME CARD (fase de grupos) ────────────────────────────────────────────────
+// ── GAME CARD (grupos) ────────────────────────────────────────────────────────
 function GameCard({ game, editId, setEditId, editS, setEditS, onSave, onClear, setModal }) {
   const hasResult = game.s1 !== null;
   const isEditing = editId === game.id;
@@ -515,7 +556,7 @@ function GameCard({ game, editId, setEditId, editS, setEditS, onSave, onClear, s
         <div style="font-size:11px;color:#334">${game.city}</div>
         <div style="display:flex;gap:6px">
           <button onClick=${() => setModal(game)} style="background:#1e2845;border:none;border-radius:6px;padding:5px 10px;color:#7a8aaa;font-size:12px;font-weight:600">🎯 Ver</button>
-          <button onClick=${() => { setEditId(game.id); setEditS({ s1: game.s1 ?? '', s2: game.s2 ?? '' }); }}
+          <button onClick=${() => { setEditId(game.id); setEditS({ s1: game.s1??'', s2: game.s2??'' }); }}
             style="background:${hasResult?'#1e3a2f':'#1e2845'};border:none;border-radius:6px;padding:5px 10px;color:${hasResult?'#4caf50':'#7a8aaa'};font-size:12px;font-weight:600">
             ${hasResult ? "✏️ Editar" : "➕ Resultado"}
           </button>
@@ -528,11 +569,11 @@ function GameCard({ game, editId, setEditId, editS, setEditS, onSave, onClear, s
           <span style="font-size:13px;color:#7a8aaa">Resultado:</span>
           <span style="font-size:13px;color:#c8d4ff;font-weight:600">${game.t1}</span>
           <input type="number" min="0" max="20" value=${editS.s1}
-            onInput=${e => setEditS(s => ({ ...s, s1: e.target.value }))}
+            onInput=${e => setEditS(s => ({...s,s1:e.target.value}))}
             style="width:48px;text-align:center;background:#0a1226;border:1px solid #2a6f3a;border-radius:6px;color:#4caf50;font-size:18px;font-weight:700;padding:4px 6px" />
           <span style="color:#334">–</span>
           <input type="number" min="0" max="20" value=${editS.s2}
-            onInput=${e => setEditS(s => ({ ...s, s2: e.target.value }))}
+            onInput=${e => setEditS(s => ({...s,s2:e.target.value}))}
             style="width:48px;text-align:center;background:#0a1226;border:1px solid #2a6f3a;border-radius:6px;color:#4caf50;font-size:18px;font-weight:700;padding:4px 6px" />
           <span style="font-size:13px;color:#c8d4ff;font-weight:600">${game.t2}</span>
           <button onClick=${() => onSave(game.id, editS.s1, editS.s2)}
@@ -543,14 +584,15 @@ function GameCard({ game, editId, setEditId, editS, setEditS, onSave, onClear, s
     </div>`;
 }
 
-// ── MATA-MATA: COMPONENTES ────────────────────────────────────────────────────
-function KnockoutTab({ knockout, onSave }) {
+// ── MATA-MATA: TAB ────────────────────────────────────────────────────────────
+function KnockoutTab({ knockout, knockoutBets, onSave }) {
   const phases = ['dezesseis','oitavas','quartas','semi','terceiro','final'];
+  const koPlayed = KNOCKOUT_GAMES.filter(g => knockout[g.id]?.goals1 !== undefined).length;
   return html`
     <div>
       <div style="margin-bottom:20px">
         <h2 style="margin:0 0 4px;font-size:18px;color:#c8d4ff">Fase Mata-Mata</h2>
-        <p style="margin:0;font-size:13px;color:#556">Resultados e classificados atualizados conforme o torneio avança</p>
+        <p style="margin:0;font-size:13px;color:#556">${koPlayed} de ${KNOCKOUT_GAMES.length} jogos com resultado · Pontuação: 30 / 18 / 12 / 0</p>
       </div>
       ${phases.map(phase => {
         const games = KNOCKOUT_GAMES.filter(g => g.phase === phase);
@@ -564,6 +606,7 @@ function KnockoutTab({ knockout, onSave }) {
                 key=${game.id}
                 game=${game}
                 data=${knockout[game.id] || {}}
+                bets=${knockoutBets[game.id] || {}}
                 onSave=${onSave}
               />`)}
           </div>`;
@@ -571,22 +614,23 @@ function KnockoutTab({ knockout, onSave }) {
     </div>`;
 }
 
-const PHASE_COLORS = {
-  dezesseis:'#1a7a3c', oitavas:'#2e75b6', quartas:'#2e75b6',
-  semi:'#2e75b6', terceiro:'#595959', final:'#b8860b'
-};
-
-function KnockoutCard({ game, data, onSave }) {
+// ── MATA-MATA: CARD ───────────────────────────────────────────────────────────
+function KnockoutCard({ game, data, bets, onSave }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ team1:'', team2:'', s1:'', s2:'' });
+  const [showBets, setShowBets] = useState(false);
 
   const hasResult = data.goals1 !== undefined && data.goals2 !== undefined;
   const t1 = data.team1 || game.team1;
   const t2 = data.team2 || game.team2;
   const isFinal = game.phase === 'final';
+  const isPending1 = game.p1 && !data.team1;
+  const isPending2 = game.p2 && !data.team2;
+
+  const ptColor = { 30:"#4caf50", 18:"#ff9800", 12:"#2196f3", 0:"#f44336" };
 
   function startEdit() {
-    setForm({ team1: data.team1 || game.team1, team2: data.team2 || game.team2, s1: data.goals1 ?? '', s2: data.goals2 ?? '' });
+    setForm({ team1: data.team1||game.team1, team2: data.team2||game.team2, s1: data.goals1??'', s2: data.goals2??'' });
     setEditing(true);
   }
 
@@ -595,8 +639,12 @@ function KnockoutCard({ game, data, onSave }) {
     setEditing(false);
   }
 
-  const isPending1 = game.p1 && !data.team1;
-  const isPending2 = game.p2 && !data.team2;
+  const betsWithPts = PARTICIPANTS.map(p => {
+    const bet = bets[p.name];
+    const pts = hasResult ? calcKnockoutScore(data, bet) : null;
+    return { name: p.name, bet, pts };
+  });
+  const hasBets = betsWithPts.some(b => b.bet);
 
   return html`
     <div style="background:#0d1526;border:1px solid ${isFinal?'#b8860b':hasResult?'#1e3a2f':'#1e2845'};border-radius:10px;margin-bottom:8px;overflow:hidden;${isFinal?'box-shadow:0 2px 12px rgba(184,134,11,.2)':''}">
@@ -621,13 +669,37 @@ function KnockoutCard({ game, data, onSave }) {
         <span style="flex:1;text-align:left;font-size:${isFinal?'15px':'13px'};font-weight:${isFinal?'800':'600'};color:${isPending2?'#6a4010':'#c8d4ff'};font-style:${isPending2?'italic':'normal'}">
           ${flag(t2)} ${t2}
         </span>
-        <button onClick=${startEdit}
-          style="background:${hasResult?'#1e3a2f':'#1e2845'};border:none;border-radius:6px;padding:5px 10px;color:${hasResult?'#4caf50':'#7a8aaa'};font-size:12px;font-weight:600;white-space:nowrap">
-          ${hasResult ? "✏️ Editar" : "➕ Resultado"}
-        </button>
+        <div style="display:flex;gap:6px">
+          ${hasBets && html`
+            <button onClick=${() => setShowBets(s => !s)}
+              style="background:${showBets?'#1e3a5f':'#1e2845'};border:none;border-radius:6px;padding:5px 10px;color:${showBets?'#7ab8f5':'#7a8aaa'};font-size:12px;font-weight:600">
+              🎯 ${showBets?'Fechar':'Palpites'}
+            </button>`}
+          <button onClick=${startEdit}
+            style="background:${hasResult?'#1e3a2f':'#1e2845'};border:none;border-radius:6px;padding:5px 10px;color:${hasResult?'#4caf50':'#7a8aaa'};font-size:12px;font-weight:600">
+            ${hasResult ? "✏️" : "➕"}
+          </button>
+        </div>
       </div>
 
-      <!-- Formulário de edição -->
+      <!-- Palpites -->
+      ${showBets && html`
+        <div style="border-top:1px solid #1e2845;padding:10px 14px;background:#080e1c">
+          <div style="display:flex;flex-direction:column;gap:5px">
+            ${betsWithPts.map(({ name, bet, pts }) => html`
+              <div style="display:flex;align-items:center;gap:10px;font-size:12px">
+                <span style="flex:1;color:#8899bb">${name}</span>
+                ${bet
+                  ? html`<span style="font-weight:700;color:#c8d4ff;min-width:46px;text-align:center">${bet.goals1} × ${bet.goals2}</span>`
+                  : html`<span style="color:#334;min-width:46px;text-align:center">–</span>`}
+                ${pts !== null
+                  ? html`<span style="min-width:38px;text-align:center;border-radius:4px;padding:2px 6px;font-weight:800;font-size:11px;background:${ptColor[pts]}22;color:${ptColor[pts]}">${pts}pts</span>`
+                  : html`<span style="min-width:38px"></span>`}
+              </div>`)}
+          </div>
+        </div>`}
+
+      <!-- Formulário edição -->
       ${editing && html`
         <div style="padding:12px 14px;border-top:1px solid #1e2845;background:#080e1c">
           <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
